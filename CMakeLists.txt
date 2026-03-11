@@ -25,6 +25,9 @@ juce_add_plugin(AISynth
   FORMATS VST3 Standalone
   PRODUCT_NAME "AI Synth")
 
+# Generate JuceHeader.h so source files can include <JuceHeader.h> on all CI platforms.
+juce_generate_juce_header(AISynth)
+
 target_sources(AISynth PRIVATE
   Source/PluginProcessor.h
   Source/PluginProcessor.cpp
