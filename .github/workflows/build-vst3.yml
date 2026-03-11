@@ -1,13 +1,7 @@
 name: Build Plugins
 
 on:
-  workflow_dispatch:
-    inputs:
-      build_vst2_windows:
-        description: "Also build legacy VST2 on Windows (requires VST2_SDK_ZIP_BASE64 secret)"
-        required: false
-        default: false
-        type: boolean
+  workflow_dispatch: {}
   push:
     branches: ["main", "master"]
   pull_request:
@@ -68,8 +62,7 @@ jobs:
           if-no-files-found: error
 
   build-vst2-windows:
-    # VST2 is legacy and license-gated: only build on manual dispatch when explicitly requested.
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_vst2_windows }}
+    # Keep VST2 aligned with VST3/standalone CI by running on every workflow trigger.
     runs-on: windows-latest
 
     steps:
