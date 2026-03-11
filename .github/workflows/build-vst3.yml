@@ -22,23 +22,43 @@ jobs:
 
       - name: Install Linux build dependencies
         if: runner.os == 'Linux'
+        shell: bash
         run: |
+          set -euo pipefail
           sudo apt-get update
-          # JUCE still probes GTK/WebKit/X11 while generating helper tools (juceaide).
-          sudo apt-get install -y \
-            libasound2-dev \
-            libx11-dev \
-            libxext-dev \
-            libxinerama-dev \
-            libxrandr-dev \
-            libxcursor-dev \
-            libxcomposite-dev \
-            libxdamage-dev \
-            libxfixes-dev \
-            libxrender-dev \
-            libfreetype6-dev \
-            libgtk-3-dev \
-            libwebkit2gtk-4.0-dev
+
+          # JUCE probes GTK/WebKit/X11 while generating helper tools (juceaide).
+          # Keep this list explicit so CI remains reproducible across runner image updates.
+          packages=(
+            libasound2-dev
+            libfreetype6-dev
+            libx11-dev
+            libxcomposite-dev
+            libxcursor-dev
+            libxdamage-dev
+            libxext-dev
+            libxfixes-dev
+            libxinerama-dev
+            libxrandr-dev
+            libxrender-dev
+            libglu1-mesa-dev
+          )
+
+          # ubuntu-latest can move between releases where only one WebKit package exists.
+          if apt-cache show libwebkit2gtk-4.1-dev >/dev/null 2>&1; then
+            packages+=(libwebkit2gtk-4.1-dev)
+          else
+            packages+=(libwebkit2gtk-4.0-dev)
+          fi
+
+          # Prefer GTK3, but gracefully accept GTK2 on older/mirrored images.
+          if apt-cache show libgtk-3-dev >/dev/null 2>&1; then
+            packages+=(libgtk-3-dev)
+          else
+            packages+=(libgtk2.0-dev)
+          fi
+
+          sudo apt-get install -y "${packages[@]}"
 
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
