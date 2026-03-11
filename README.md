@@ -23,6 +23,19 @@ cmake --build build --config Release --target AISynth_VST3
 
 The generated `.vst3` bundle will appear in the `build` tree in the platform-specific plugin output folder.
 
+### Build on GitHub Actions
+- Pushes/PRs automatically build **VST3** artifacts on Linux, Windows, and macOS.
+- Legacy **VST2 (Windows)** can be built from **Actions -> Build Plugins -> Run workflow** by enabling `build_vst2_windows`.
+- For the VST2 workflow, add a repository secret named `VST2_SDK_ZIP_BASE64` containing a base64-encoded zip of your local VST2 SDK folder (not distributed by this repo).
+
+You can generate the secret value locally (PowerShell):
+```powershell
+$bytes = [IO.File]::ReadAllBytes("C:\path\to\vst2_sdk.zip")
+[Convert]::ToBase64String($bytes) | Set-Clipboard
+```
+Then paste the clipboard value into the GitHub repository secret `VST2_SDK_ZIP_BASE64`.
+
+
 ## Optional: Build a VST2 `.dll` for Cubase 5
 > This requires a locally installed VST2 SDK path. This repository does **not** include or distribute the SDK.
 
