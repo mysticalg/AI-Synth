@@ -1,0 +1,54 @@
+#pragma once
+
+#include <JuceHeader.h>
+#include "PluginProcessor.h"
+
+class EnvelopeDisplay final : public juce::Component, private juce::Timer
+{
+public:
+    explicit EnvelopeDisplay(AISynthAudioProcessor& processorRef);
+
+    void paint(juce::Graphics& g) override;
+
+private:
+    void timerCallback() override;
+
+    AISynthAudioProcessor& processor;
+    juce::Path envelopePath;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(EnvelopeDisplay)
+};
+
+class AISynthAudioProcessorEditor final : public juce::AudioProcessorEditor
+{
+public:
+    explicit AISynthAudioProcessorEditor(AISynthAudioProcessor&);
+    ~AISynthAudioProcessorEditor() override = default;
+
+    void paint(juce::Graphics&) override;
+    void resized() override;
+
+private:
+    using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
+    using ComboAttachment = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
+    using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
+
+    juce::Slider& addKnob(const juce::String& id, const juce::String& title, const juce::String& tooltip);
+
+    AISynthAudioProcessor& audioProcessor;
+    juce::TooltipWindow tooltipWindow { this, 500 };
+
+    juce::ComboBox waveform;
+    std::unique_ptr<ComboAttachment> waveformAttachment;
+
+    juce::OwnedArray<juce::Slider> knobs;
+    juce::OwnedArray<juce::Label> labels;
+    std::vector<std::unique_ptr<SliderAttachment>> sliderAttachments;
+
+    juce::ToggleButton steppedEnvButton { "✂ Step Env" };
+    std::unique_ptr<ButtonAttachment> steppedEnvAttachment;
+
+    EnvelopeDisplay envelopeDisplay;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AISynthAudioProcessorEditor)
+};

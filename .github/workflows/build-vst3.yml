@@ -1,0 +1,44 @@
+name: Build VST3
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup CMake
+      
+        uses: lukka/get-cmake@latest
+
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release --target AISynth_VST3
+
+      - name: Collect plugin artifact
+        shell: bash
+        run: |
+          mkdir -p artifact
+          find build -type f \( -name "*.vst3" -o -name "*.vst3/*" \) 2>/dev/null || true
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            powershell -Command "Get-ChildItem -Recurse build -Filter *.vst3 | Copy-Item -Destination artifact -Recurse"
+          else
+            find build -name "*.vst3" -exec cp -R {} artifact/ \;
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AISynth-${{ matrix.os }}-VST3
+          path: artifact
