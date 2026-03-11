@@ -32,6 +32,7 @@ jobs:
           packages=(
             libasound2-dev
             libfreetype6-dev
+            libglu1-mesa-dev
             libx11-dev
             libxcomposite-dev
             libxcursor-dev
@@ -41,24 +42,37 @@ jobs:
             libxinerama-dev
             libxrandr-dev
             libxrender-dev
-            libglu1-mesa-dev
+            pkg-config
           )
 
-          # ubuntu-latest can move between releases where only one WebKit package exists.
-          if apt-cache show libwebkit2gtk-4.1-dev >/dev/null 2>&1; then
-            packages+=(libwebkit2gtk-4.1-dev)
-          else
-            packages+=(libwebkit2gtk-4.0-dev)
-          fi
+          # Select the first package candidate available on the runner image.
+          choose_package() {
+            local pkg
+            for pkg in "$@"; do
+              if apt-cache show "$pkg" >/dev/null 2>&1; then
+                echo "$pkg"
+                return 0
+              fi
+            done
+            return 1
+          }
 
-          # Prefer GTK3, but gracefully accept GTK2 on older/mirrored images.
-          if apt-cache show libgtk-3-dev >/dev/null 2>&1; then
-            packages+=(libgtk-3-dev)
-          else
-            packages+=(libgtk2.0-dev)
+          webkit_pkg="$(choose_package libwebkit2gtk-4.1-dev libwebkit2gtk-4.0-dev || true)"
+          if [[ -z "$webkit_pkg" ]]; then
+            echo "No supported libwebkit2gtk development package found on this runner" >&2
+            exit 1
           fi
+          packages+=("$webkit_pkg")
 
-          sudo apt-get install -y "${packages[@]}"
+          gtk_pkg="$(choose_package libgtk-3-dev libgtk2.0-dev || true)"
+          if [[ -z "$gtk_pkg" ]]; then
+            echo "No supported GTK development package found on this runner" >&2
+            exit 1
+          fi
+          packages+=("$gtk_pkg")
+
+          echo "Installing Linux packages: ${packages[*]}"
+          sudo apt-get install -y --no-install-recommends "${packages[@]}"
 
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -70,7 +84,6 @@ jobs:
         shell: bash
         run: |
           mkdir -p artifact
-          find build -type f \( -name "*.vst3" -o -name "*.vst3/*" \) 2>/dev/null || true
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             powershell -Command "Get-ChildItem -Recurse build -Filter *.vst3 | Copy-Item -Destination artifact -Recurse"
           else
