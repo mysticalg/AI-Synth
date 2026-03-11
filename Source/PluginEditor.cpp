@@ -50,10 +50,171 @@ void EnvelopeDisplay::paint(juce::Graphics& g)
     g.drawText("ADSR (curved / stepped preview)", getLocalBounds().reduced(12), juce::Justification::topLeft);
 }
 
-AISynthAudioProcessorEditor::AISynthAudioProcessorEditor(AISynthAudioProcessor& p)
-    : AudioProcessorEditor(&p), audioProcessor(p), envelopeDisplay(p)
+ClassroomScene::ClassroomScene(AISynthAudioProcessor& processorRef) : processor(processorRef)
 {
-    setSize(1200, 720);
+    students[0].position = { 70.0f, 165.0f };
+    students[1].position = { 160.0f, 165.0f };
+    students[2].position = { 250.0f, 165.0f };
+    students[3].position = { 340.0f, 165.0f };
+    startTimerHz(5);
+}
+
+void ClassroomScene::timerCallback()
+{
+    static const std::array<juce::String, 6> speechOptions {
+        "I think the answer is 12!",
+        "🙂 Let's solve it together.",
+        "Teacher, can I explain?",
+        "👍 Great idea!",
+        "🤔 Maybe try another method?",
+        "🎯 I can show my working."
+    };
+
+    static const std::array<juce::String, 4> thoughtOptions {
+        "(daydreaming about lunch...)",
+        "(thinking about homework)",
+        "(imagining snowball teams)",
+        "(planning football strategy)"
+    };
+
+    for (auto& student : students)
+    {
+        student.speaking = juce::Random::getSystemRandom().nextBool();
+        if (student.speaking)
+            student.bubbleText = speechOptions[static_cast<size_t>(juce::Random::getSystemRandom().nextInt(static_cast<int>(speechOptions.size())))];
+        else
+            student.bubbleText = thoughtOptions[static_cast<size_t>(juce::Random::getSystemRandom().nextInt(static_cast<int>(thoughtOptions.size())))];
+    }
+
+    if (activityLog.isEmpty())
+        activityLog = "Activity Log: Students answer teacher questions, share ideas with emoticons, and react to classmates.";
+
+    if (getWeatherName() == "Windy")
+        windShift = std::sin(juce::Time::getMillisecondCounterHiRes() * 0.006) * 8.0f;
+    else
+        windShift = 0.0f;
+
+    repaint();
+}
+
+juce::String ClassroomScene::getWeatherName() const
+{
+    const auto seconds = juce::Time::getCurrentTime().toMilliseconds() / 1000;
+    const auto weeks = seconds / (7 * 24 * 60 * 60);
+    switch (weeks % 4)
+    {
+        case 0: return "Sunny";
+        case 1: return "Rainy";
+        case 2: return "Snowy";
+        default: return "Windy";
+    }
+}
+
+juce::String ClassroomScene::getWeatherReaction() const
+{
+    const auto weather = getWeatherName();
+    if (weather == "Rainy")
+        return "Students choose to stay inside while it rains.";
+    if (weather == "Snowy")
+        return "Students want snowball fights during break.";
+    if (weather == "Sunny")
+        return "Students want to play football outside.";
+    return "Students just want to run around in the wind.";
+}
+
+void ClassroomScene::triggerActionKey()
+{
+    activityLog = "Activity Log: [E] action key used at urinals. Toilets are interactable.";
+    repaint();
+}
+
+void ClassroomScene::paint(juce::Graphics& g)
+{
+    auto bounds = getLocalBounds().toFloat().reduced(6.0f);
+    g.fillAll(juce::Colour(0xff0f1218));
+
+    auto outside = bounds.removeFromTop(95.0f);
+    const auto weather = getWeatherName();
+
+    g.setColour(juce::Colour(0xff37445f));
+    g.fillRect(outside);
+
+    // Sun / rain / snow / wind visual cues for weekly rotating weather.
+    if (weather == "Sunny")
+    {
+        g.setColour(juce::Colours::yellow);
+        g.fillEllipse(outside.getRight() - 62.0f, outside.getY() + 12.0f, 32.0f, 32.0f);
+    }
+    else if (weather == "Rainy")
+    {
+        g.setColour(juce::Colours::lightblue);
+        for (int i = 0; i < 16; ++i)
+            g.drawLine(outside.getX() + i * 28.0f, outside.getY() + 8.0f, outside.getX() + i * 28.0f - 5.0f, outside.getBottom() - 6.0f, 1.4f);
+    }
+    else if (weather == "Snowy")
+    {
+        g.setColour(juce::Colours::white);
+        for (int i = 0; i < 28; ++i)
+            g.fillEllipse(outside.getX() + i * 16.0f, outside.getY() + 10.0f + (i % 5) * 12.0f, 4.0f, 4.0f);
+    }
+    else
+    {
+        g.setColour(juce::Colours::whitesmoke);
+        for (int i = 0; i < 4; ++i)
+            g.drawArrow({ outside.getX() + 40.0f + i * 90.0f, outside.getY() + 22.0f, 42.0f + i * 90.0f, outside.getY() + 10.0f }, 1.6f, 8.0f, 7.0f);
+    }
+
+    // Tree line around the school; sways in windy weather.
+    for (int i = 0; i < 10; ++i)
+    {
+        const auto x = outside.getX() + 12.0f + i * 44.0f + windShift;
+        g.setColour(juce::Colours::saddlebrown);
+        g.fillRect(x + 8.0f, outside.getBottom() - 22.0f, 5.0f, 20.0f);
+        g.setColour(juce::Colours::forestgreen);
+        g.fillEllipse(x, outside.getBottom() - 38.0f, 22.0f, 18.0f);
+    }
+
+    auto classroom = bounds;
+    g.setColour(juce::Colour(0xff1d2330));
+    g.fillRoundedRectangle(classroom, 8.0f);
+
+    // Toilet corner with urinals and action-key hint.
+    auto toiletArea = classroom.removeFromRight(140.0f).reduced(6.0f);
+    g.setColour(juce::Colour(0xff141920));
+    g.fillRoundedRectangle(toiletArea, 6.0f);
+    g.setColour(juce::Colours::lightgrey);
+    g.drawText("Toilets", toiletArea.removeFromTop(20.0f).toNearestInt(), juce::Justification::centred);
+    for (int i = 0; i < 2; ++i)
+        g.fillRoundedRectangle(toiletArea.getX() + 14.0f + i * 56.0f, toiletArea.getY() + 18.0f, 30.0f, 54.0f, 7.0f);
+    g.setColour(juce::Colours::deepskyblue.withAlpha(0.9f));
+    g.drawText("Press [E] action key\nto use urinals", toiletArea.removeFromBottom(38.0f).toNearestInt(), juce::Justification::centred);
+
+    g.setColour(juce::Colours::white.withAlpha(0.8f));
+    g.setFont(12.0f);
+    g.drawText(activityLog, classroom.removeFromTop(18.0f).toNearestInt(), juce::Justification::left);
+    g.drawText("Weather: " + weather + "  •  " + getWeatherReaction(), classroom.removeFromTop(18.0f).toNearestInt(), juce::Justification::left);
+
+    for (const auto& student : students)
+    {
+        const auto x = student.position.x + windShift;
+        const auto y = student.position.y;
+
+        g.setColour(juce::Colours::lightgreen);
+        g.fillEllipse(x, y, 20.0f, 20.0f);
+
+        auto bubbleArea = juce::Rectangle<float>(x - 36.0f, y - 44.0f, 96.0f, 28.0f);
+        g.setColour(student.speaking ? juce::Colours::white : juce::Colours::lightgoldenrodyellow);
+        g.fillRoundedRectangle(bubbleArea, 8.0f);
+        g.setColour(juce::Colours::black.withAlpha(0.8f));
+        g.setFont(10.0f);
+        g.drawFittedText(student.bubbleText, bubbleArea.toNearestInt().reduced(3), juce::Justification::centred, 2);
+    }
+}
+
+AISynthAudioProcessorEditor::AISynthAudioProcessorEditor(AISynthAudioProcessor& p)
+    : AudioProcessorEditor(&p), audioProcessor(p), envelopeDisplay(p), classroomScene(p)
+{
+    setSize(1200, 860);
 
     waveform.addItemList({ "Sine", "Saw", "Square", "Noise" }, 1);
     waveform.setTooltip("Main oscillator waveform selector.");
@@ -95,12 +256,16 @@ AISynthAudioProcessorEditor::AISynthAudioProcessorEditor(AISynthAudioProcessor& 
     add("flangerRate", "Fl Hz", "Flanger rate.");
     add("flangerDepth", "Fl D", "Flanger depth.");
     add("drive", "Drive", "Distortion / overdrive intensity.");
+    add("sfxLevel", "SFX", "Class ambience and weather sound effect level.");
 
     steppedEnvButton.setTooltip("Enable stepped ADSR editing/playback.");
     addAndMakeVisible(steppedEnvButton);
     steppedEnvAttachment = std::make_unique<ButtonAttachment>(audioProcessor.apvts, "envStepped", steppedEnvButton);
 
     addAndMakeVisible(envelopeDisplay);
+    addAndMakeVisible(classroomScene);
+    setWantsKeyboardFocus(true);
+    grabKeyboardFocus();
 }
 
 juce::Slider& AISynthAudioProcessorEditor::addKnob(const juce::String& id, const juce::String& title, const juce::String& tooltip)
@@ -132,6 +297,16 @@ void AISynthAudioProcessorEditor::paint(juce::Graphics& g)
     g.drawText("Tooltips included for every control. Hover to learn what each section does.", 14, 36, getWidth() - 20, 20, juce::Justification::centredLeft);
 }
 
+bool AISynthAudioProcessorEditor::keyPressed(const juce::KeyPress& key)
+{
+    if (key.getTextCharacter() == 'e' || key.getTextCharacter() == 'E')
+    {
+        classroomScene.triggerActionKey();
+        return true;
+    }
+    return false;
+}
+
 void AISynthAudioProcessorEditor::resized()
 {
     auto area = getLocalBounds().reduced(12);
@@ -145,10 +320,13 @@ void AISynthAudioProcessorEditor::resized()
     auto envArea = area.removeFromTop(190);
     envelopeDisplay.setBounds(envArea.reduced(4));
 
+    auto sceneArea = area.removeFromTop(220);
+    classroomScene.setBounds(sceneArea.reduced(4));
+
     auto grid = area;
     const int columns = 8;
     const int cellW = grid.getWidth() / columns;
-    const int cellH = 140;
+    const int cellH = 130;
 
     for (int i = 0; i < knobs.size(); ++i)
     {

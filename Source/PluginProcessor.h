@@ -40,6 +40,12 @@ public:
     float getParam(const juce::String& id) const;
 
 private:
+    // Weather ambience generator state used for lightweight environmental SFX.
+    float weatherNoiseState { 0.0f };
+    float weatherLfoPhase { 0.0f };
+
+    int getActiveWeatherIndex() const;
+
     juce::Synthesiser synth;
 
     juce::dsp::DelayLine<float, juce::dsp::DelayLineInterpolationTypes::Linear> delayLine { 96000 };

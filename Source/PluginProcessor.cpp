@@ -60,6 +60,13 @@ float AISynthAudioProcessor::getParam(const juce::String& id) const
     return 0.0f;
 }
 
+int AISynthAudioProcessor::getActiveWeatherIndex() const
+{
+    const auto seconds = juce::Time::getCurrentTime().toMilliseconds() / 1000;
+    const auto weeks = seconds / (7 * 24 * 60 * 60);
+    return static_cast<int>(weeks % 4); // 0=sun, 1=rain, 2=snow, 3=wind
+}
+
 void AISynthAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
     juce::ScopedNoDenormals noDenormals;
@@ -84,6 +91,32 @@ void AISynthAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce:
     for (int c = 0; c < buffer.getNumChannels(); ++c)
         for (int i = 0; i < buffer.getNumSamples(); ++i)
             buffer.setSample(c, i, std::tanh(buffer.getSample(c, i) * (1.0f + drive * 20.0f)));
+
+    // Low-level procedural SFX bed to represent weekly weather ambience.
+    const auto sfxLevel = getParam("sfxLevel");
+    const auto weather = getActiveWeatherIndex();
+    const auto inverseSampleRate = static_cast<float>(1.0 / juce::jmax(1.0, getSampleRate()));
+
+    for (int i = 0; i < buffer.getNumSamples(); ++i)
+    {
+        const auto white = juce::Random::getSystemRandom().nextFloat() * 2.0f - 1.0f;
+        weatherNoiseState += 0.08f * (white - weatherNoiseState);
+        weatherLfoPhase += juce::MathConstants<float>::twoPi * 0.2f * inverseSampleRate;
+        if (weatherLfoPhase > juce::MathConstants<float>::twoPi)
+            weatherLfoPhase -= juce::MathConstants<float>::twoPi;
+
+        float ambience = 0.0f;
+        switch (weather)
+        {
+            case 0: ambience = 0.06f * std::sin(weatherLfoPhase * 1.5f); break; // sunny birds/air shimmer
+            case 1: ambience = weatherNoiseState * 0.11f; break;                // rain noise
+            case 2: ambience = weatherNoiseState * 0.05f + 0.03f * std::sin(weatherLfoPhase * 0.6f); break; // snow hush
+            default: ambience = weatherNoiseState * 0.09f + 0.05f * std::sin(weatherLfoPhase * 3.0f); break; // wind gusts
+        }
+
+        for (int c = 0; c < buffer.getNumChannels(); ++c)
+            buffer.addSample(c, i, ambience * sfxLevel);
+    }
 
     const auto delayMix = getParam("delayMix");
     const auto delayTimeMs = getParam("delayTime");
@@ -140,6 +173,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout AISynthAudioProcessor::creat
     params.push_back(std::make_unique<juce::AudioParameterFloat>("flangerRate", "Flanger Rate", 0.01f, 6.0f, 0.35f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>("flangerDepth", "Flanger Depth", 0.0f, 1.0f, 0.3f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>("drive", "Drive", 0.0f, 1.0f, 0.25f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("sfxLevel", "Class SFX", 0.0f, 1.0f, 0.2f));
 
     return { params.begin(), params.end() };
 }
