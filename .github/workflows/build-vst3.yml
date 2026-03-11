@@ -51,43 +51,12 @@ jobs:
       - name: Build
         run: cmake --build build --config Release --target AISynth_VST3
 
-      - name: Collect plugin artifact (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path artifact | Out-Null
-
-          # VST3 artifacts are bundle directories on Windows; copy only directories
-          # to avoid colliding with similarly named files inside the bundle.
-          $vst3Dirs = Get-ChildItem -Path build -Recurse -Directory -Filter *.vst3
-          if (-not $vst3Dirs) {
-            throw "No .vst3 bundle directories were found under build/."
-          }
-
-          foreach ($dir in $vst3Dirs) {
-            Copy-Item -Path $dir.FullName -Destination artifact -Recurse -Force
-          }
-
-      - name: Collect plugin artifact (macOS/Linux)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p artifact
-
-          # Copy VST3 bundle directories only; they are package folders on Unix hosts.
-          mapfile -t vst3_dirs < <(find build -type d -name "*.vst3")
-          if [[ ${#vst3_dirs[@]} -eq 0 ]]; then
-            echo "No .vst3 bundle directories were found under build/." >&2
-            exit 1
-          fi
-
-          for dir in "${vst3_dirs[@]}"; do
-            cp -R "$dir" artifact/
-          done
-
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: AISynth-${{ matrix.os }}-VST3
-          path: artifact
+          # Upload VST3 bundle directories directly from the build tree.
+          # This avoids OS-specific copy scripts (bash/pwsh differences) that can fail CI.
+          path: |
+            build/**/*.vst3
+          if-no-files-found: error
