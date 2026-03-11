@@ -12,6 +12,25 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(juce)
 
+# Optional legacy VST2 build support (for hosts like Cubase 5).
+#
+# IMPORTANT:
+# JUCE can only build VST2 when a compatible VST2 SDK is provided locally.
+# We do not vendor or distribute that SDK in this repository.
+option(AISYNTH_ENABLE_VST2 "Build a legacy VST2 (.dll) target when a VST2 SDK is available" OFF)
+
+set(AISYNTH_PLUGIN_FORMATS VST3 Standalone)
+if(AISYNTH_ENABLE_VST2)
+  if(DEFINED ENV{VST2_SDK_DIR})
+    # JUCE checks this variable to locate VST2 headers.
+    set(VST2_SDK_DIR "$ENV{VST2_SDK_DIR}")
+    list(APPEND AISYNTH_PLUGIN_FORMATS VST)
+    message(STATUS "AISynth: VST2 enabled using VST2_SDK_DIR='${VST2_SDK_DIR}'")
+  else()
+    message(WARNING "AISynth: AISYNTH_ENABLE_VST2=ON but VST2_SDK_DIR is not set. Building VST3/Standalone only.")
+  endif()
+endif()
+
 juce_add_plugin(AISynth
   COMPANY_NAME "AI Synth"
   IS_SYNTH TRUE
@@ -22,7 +41,7 @@ juce_add_plugin(AISynth
   COPY_PLUGIN_AFTER_BUILD FALSE
   PLUGIN_MANUFACTURER_CODE AIsy
   PLUGIN_CODE AIs1
-  FORMATS VST3 Standalone
+  FORMATS ${AISYNTH_PLUGIN_FORMATS}
   PRODUCT_NAME "AI Synth")
 
 # Generate JuceHeader.h so source files can include <JuceHeader.h> on all CI platforms.
