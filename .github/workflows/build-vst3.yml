@@ -12,12 +12,20 @@ on:
     branches: ["main", "master"]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
-  build-vst3:
+  build-desktop:
     strategy:
       matrix:
-        # Build on all desktop targets we support so release artifacts stay in sync.
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            platform: Linux
+          - os: windows-latest
+            platform: Windows
+          - os: macos-latest
+            platform: macOS
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -25,6 +33,11 @@ jobs:
 
       - name: Setup CMake
         uses: lukka/get-cmake@latest
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
 
       - name: Install Linux build dependencies
         if: runner.os == 'Linux'
@@ -54,18 +67,45 @@ jobs:
       - name: Configure (VST3 + Standalone)
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 
-      - name: Build VST3
-        run: cmake --build build --config Release --target AISynth_VST3
+      - name: Build VST3 + Standalone
+        run: cmake --build build --config Release --target AISynth_VST3 AISynth_Standalone
 
-      - name: Upload VST3 artifact
+      - name: Package release bundles
+        run: python scripts/package_release.py --build-dir build --dist-dir dist --platform "${{ matrix.platform }}" --runner-os "${{ runner.os }}"
+
+      - name: Upload packaged artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: AISynth-${{ matrix.os }}-VST3
-          # Upload VST3 bundle directories directly from the build tree.
-          # This avoids OS-specific copy scripts (bash/pwsh differences) that can fail CI.
-          path: |
-            build/**/*.vst3
+          name: AISynth-${{ matrix.platform }}-packages
+          path: dist/*.zip
           if-no-files-found: error
+
+  publish-latest-release:
+    if: ${{ github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'master') }}
+    needs: build-desktop
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download packaged artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: AISynth-*-packages
+          path: release-assets
+          merge-multiple: true
+
+      - name: Publish rolling release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest-build
+          name: Latest build
+          prerelease: true
+          body: |
+            Automated standalone and VST3 bundles from the latest push to `${{ github.ref_name }}`.
+          files: release-assets/*.zip
+          fail_on_unmatched_files: true
+          overwrite_files: true
 
   build-vst2-windows:
     # VST2 is legacy and license-gated: only build on manual dispatch when explicitly requested.

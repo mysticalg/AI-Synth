@@ -32,6 +32,7 @@ if(AISYNTH_ENABLE_VST2)
 endif()
 
 juce_add_plugin(AISynth
+  BUNDLE_ID "com.aisynth.app"
   COMPANY_NAME "AI Synth"
   IS_SYNTH TRUE
   NEEDS_MIDI_INPUT TRUE

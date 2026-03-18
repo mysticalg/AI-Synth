@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI Synth</title>
+  <style>
+    :root {
+      --bg: #070a0f;
+      --bg-2: #0e1622;
+      --panel: rgba(17, 22, 31, 0.92);
+      --panel-2: rgba(23, 31, 44, 0.92);
+      --text: #edf5ff;
+      --muted: #aab6c8;
+      --accent: #ffb347;
+      --accent-2: #5fd8ff;
+      --line: rgba(255, 255, 255, 0.1);
+      --shadow: 0 25px 70px rgba(0, 0, 0, 0.42);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Helvetica Neue", sans-serif;
+      color: var(--text);
+      background:
+        linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+        radial-gradient(circle at top, rgba(255, 179, 71, 0.18), transparent 30%),
+        radial-gradient(circle at 80% 10%, rgba(95, 216, 255, 0.14), transparent 22%),
+        linear-gradient(180deg, var(--bg-2) 0%, var(--bg) 62%);
+      background-size: 26px 26px, 26px 26px, auto, auto, auto;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .shell {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 36px 20px 60px;
+    }
+
+    .hero {
+      border: 1px solid var(--line);
+      border-radius: 26px;
+      overflow: hidden;
+      background: linear-gradient(180deg, rgba(30, 38, 52, 0.96), rgba(11, 16, 24, 0.98));
+      box-shadow: var(--shadow);
+    }
+
+    .hero-top {
+      padding: 28px 30px 18px;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(33, 43, 58, 0.96), rgba(17, 23, 34, 0.94));
+    }
+
+    .eyebrow {
+      margin: 0 0 10px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      color: var(--accent);
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2.7rem, 6vw, 4.4rem);
+      line-height: 0.94;
+      letter-spacing: 0.04em;
+    }
+
+    .subhead {
+      margin: 14px 0 0;
+      max-width: 820px;
+      color: var(--muted);
+      font-size: 1.06rem;
+      line-height: 1.6;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 22px;
+    }
+
+    .button {
+      padding: 12px 18px;
+      border-radius: 999px;
+      font-weight: 700;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.03);
+      transition: transform 140ms ease, border-color 140ms ease, background 140ms ease;
+    }
+
+    .button:hover {
+      transform: translateY(-1px);
+      border-color: rgba(95, 216, 255, 0.5);
+      background: rgba(95, 216, 255, 0.08);
+    }
+
+    .button.primary {
+      color: #18120a;
+      background: linear-gradient(180deg, var(--accent-2), var(--accent));
+      border-color: transparent;
+    }
+
+    .hero-shot {
+      padding: 20px;
+      background:
+        linear-gradient(180deg, rgba(10, 13, 17, 0), rgba(10, 13, 17, 0.52)),
+        linear-gradient(180deg, rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0.3));
+    }
+
+    .hero-shot img {
+      display: block;
+      width: 100%;
+      height: auto;
+      border-radius: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.4);
+    }
+
+    .section {
+      margin-top: 28px;
+      padding: 22px;
+      border-radius: 22px;
+      background: linear-gradient(180deg, var(--panel-2), var(--panel));
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+    }
+
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    .section-head h2 {
+      margin: 0;
+      font-size: 1.2rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    .section-head p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 18px;
+    }
+
+    .card {
+      padding: 20px;
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(31, 38, 46, 0.95), rgba(18, 22, 27, 0.98));
+      border: 1px solid var(--line);
+      box-shadow: 0 14px 30px rgba(0, 0, 0, 0.22);
+    }
+
+    .card h3 {
+      margin: 0 0 12px;
+      font-size: 1.05rem;
+      color: var(--accent-2);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .card p,
+    .card li {
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .card ul {
+      padding-left: 18px;
+      margin: 0;
+    }
+
+    .shot-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 18px;
+    }
+
+    figure {
+      margin: 0;
+    }
+
+    figure img {
+      display: block;
+      width: 100%;
+      height: auto;
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.34);
+    }
+
+    figcaption {
+      margin-top: 10px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .download-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .download-note {
+      margin-top: 14px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .footer {
+      margin-top: 24px;
+      text-align: center;
+      color: #92a0ac;
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+
+    code {
+      font-family: "Consolas", "SFMono-Regular", monospace;
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <div class="hero-top">
+        <p class="eyebrow">Standalone + VSTi</p>
+        <h1>AI Synth</h1>
+        <p class="subhead">
+          A JUCE-based software synth with a compact tabbed front panel, playable full-width keyboard,
+          modulation routing, sequencer, presets, and GitHub-hosted downloads for both standalone and VST3 use.
+        </p>
+        <div class="hero-actions">
+          <a class="button primary" href="https://github.com/mysticalg/AI-Synth/releases/download/latest-build/AI-Synth-Windows-Standalone.zip">Download Windows Standalone</a>
+          <a class="button" href="https://github.com/mysticalg/AI-Synth/releases/download/latest-build/AI-Synth-Windows-VST3.zip">Download Windows VST3</a>
+          <a class="button" href="https://github.com/mysticalg/AI-Synth">View Repository</a>
+          <a class="button" href="https://github.com/mysticalg/AI-Synth/blob/main/README.md">Open README</a>
+        </div>
+      </div>
+      <div class="hero-shot">
+        <img src="./assets/ai-synth-overview.png" alt="AI Synth overview screenshot">
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <div>
+          <h2>Downloads</h2>
+          <p>The site points at the rolling <code>latest-build</code> GitHub release, updated automatically on each push to <code>main</code> or <code>master</code>.</p>
+        </div>
+      </div>
+      <div class="grid">
+        <article class="card">
+          <h3>Windows</h3>
+          <p>Ready-to-run standalone app and VST3 bundle for local use or DAW installs.</p>
+          <div class="download-buttons">
+            <a class="button primary" href="https://github.com/mysticalg/AI-Synth/releases/download/latest-build/AI-Synth-Windows-Standalone.zip">Standalone</a>
+            <a class="button" href="https://github.com/mysticalg/AI-Synth/releases/download/latest-build/AI-Synth-Windows-VST3.zip">VST3</a>
+          </div>
+        </article>
+        <article class="card">
+          <h3>macOS</h3>
+          <p>Freshly packaged macOS bundles from the latest GitHub build.</p>
+          <div class="download-buttons">
+            <a class="button primary" href="https://github.com/mysticalg/AI-Synth/releases/download/latest-build/AI-Synth-macOS-Standalone.zip">Standalone</a>
+            <a class="button" href="https://github.com/mysticalg/AI-Synth/releases/download/latest-build/AI-Synth-macOS-VST3.zip">VST3</a>
+          </div>
+        </article>
+        <article class="card">
+          <h3>Linux</h3>
+          <p>Latest Linux standalone binary and VST3 bundle zipped from CI.</p>
+          <div class="download-buttons">
+            <a class="button primary" href="https://github.com/mysticalg/AI-Synth/releases/download/latest-build/AI-Synth-Linux-Standalone.zip">Standalone</a>
+            <a class="button" href="https://github.com/mysticalg/AI-Synth/releases/download/latest-build/AI-Synth-Linux-VST3.zip">VST3</a>
+          </div>
+        </article>
+      </div>
+      <p class="download-note">
+        Looking for every asset in one place? Open the
+        <a href="https://github.com/mysticalg/AI-Synth/releases/tag/latest-build">latest build release</a>.
+      </p>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <div>
+          <h2>Screenshots</h2>
+          <p>The front panel stays compact, and the sequencer gets its own dedicated tab.</p>
+        </div>
+      </div>
+      <div class="shot-grid">
+        <figure>
+          <img src="./assets/ai-synth-overview.png" alt="AI Synth overview screenshot">
+          <figcaption>Overview tab with the compact hardware-style layout, grouped control sections, and the full-width keyboard.</figcaption>
+        </figure>
+        <figure>
+          <img src="./assets/ai-synth-sequencer.png" alt="AI Synth sequencer screenshot">
+          <figcaption>Sequencer tab with pattern controls and step editing, ready to combine with the synth engine and modulation system.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <div>
+          <h2>What's Inside</h2>
+          <p>Built for both local play and plugin-host workflows.</p>
+        </div>
+      </div>
+      <div class="grid">
+        <article class="card">
+          <h3>Synthesis</h3>
+          <ul>
+            <li>Multiple oscillators, sub, FM, filter drive, envelopes, and unison controls</li>
+            <li>Modulation matrix, LFOs, sequencing, and performance routing</li>
+            <li>Preset browser with grouped factory sounds</li>
+          </ul>
+        </article>
+        <article class="card">
+          <h3>Playback</h3>
+          <ul>
+            <li>Standalone app for direct local use</li>
+            <li>VST3 build for plugin hosts</li>
+            <li>Host-synced timing plus free-running controls</li>
+          </ul>
+        </article>
+        <article class="card">
+          <h3>Local Build</h3>
+          <p>From the repo root:</p>
+          <p><code>powershell -ExecutionPolicy Bypass -File .\build-local.ps1 -Target All</code></p>
+          <p>The standalone app is written to <code>build\AISynth_artefacts\Release\Standalone\AI Synth.exe</code>.</p>
+        </article>
+      </div>
+    </section>
+
+    <p class="footer">
+      This page is deployed automatically from <code>docs/</code> by GitHub Actions, and the download buttons point at the rolling <code>latest-build</code> GitHub release.
+    </p>
+  </main>
+</body>
+</html>
