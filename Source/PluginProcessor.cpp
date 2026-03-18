@@ -891,7 +891,8 @@ void AISynthAudioProcessor::applyRhythmGate(juce::AudioBuffer<float>& buffer)
     const auto rateHz = juce::jlimit(0.25f, 24.0f, getParam("rhythmGateRate"));
     const auto depth = juce::jlimit(0.0f, 1.0f, getParam("rhythmGateDepth"));
     const auto patternIndex = juce::jlimit(0, static_cast<int>(gatePatterns.size()) - 1, static_cast<int>(getParam("rhythmGatePattern")));
-    const auto samplesPerStep = juce::jmax<juce::uint64>(1, static_cast<juce::uint64>(std::round(getSampleRate() / rateHz)));
+    const auto roundedSamplesPerStep = static_cast<juce::uint64>(std::round(getSampleRate() / rateHz));
+    const auto samplesPerStep = roundedSamplesPerStep > 0 ? roundedSamplesPerStep : juce::uint64 { 1 };
     const auto& pattern = gatePatterns[static_cast<size_t>(patternIndex)];
 
     for (int sample = 0; sample < buffer.getNumSamples(); ++sample)

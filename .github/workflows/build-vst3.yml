@@ -18,6 +18,7 @@ permissions:
 jobs:
   build-desktop:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
