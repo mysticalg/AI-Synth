@@ -4,7 +4,7 @@ namespace
 {
 const juce::StringArray waveformItems { "Sine", "Saw", "Square", "Triangle", "Noise" };
 const juce::StringArray subWaveformItems { "Sine", "Square", "Saw", "Triangle" };
-const juce::StringArray filterItems { "Low Pass", "Band Pass", "High Pass" };
+const juce::StringArray filterItems { "Low Pass", "Band Pass", "High Pass", "Low Pass 24" };
 const juce::StringArray lfoShapeItems { "Sine", "Triangle", "Square", "Saw", "S&H" };
 const juce::StringArray pwmSourceItems { "Off", "LFO 1", "LFO 2", "LFO 3", "Env 2", "Mod Wheel" };
 const juce::StringArray syncSourceItems { "Off", "Osc 1", "Osc 2", "Osc 3" };
@@ -28,7 +28,48 @@ const juce::StringArray themeItems
     "Minimal Pro"
 };
 
-constexpr float rotaryKnobDiameter = 56.0f;
+constexpr float rotaryKnobDiameter = 44.0f;
+constexpr int rotaryTextBoxWidth = 64;
+constexpr int rotaryTextBoxHeight = 20;
+constexpr int rotaryControlWidth = 78;
+constexpr int rotaryControlHeight = 86;
+
+juce::String formatSliderValue(const juce::String& id, double value)
+{
+    const auto roundedInt = juce::roundToInt(value);
+    const auto isWhole = std::abs(value - static_cast<double>(roundedInt)) < 0.0001;
+
+    const auto integerIds = juce::StringArray
+    {
+        "voiceCount", "unisonVoices", "pitchBendRange", "stepSeqSteps", "subOctave",
+        "arpOctaves", "bitDepth", "bitDownsample"
+    };
+
+    if (integerIds.contains(id) || (isWhole && std::abs(value) >= 100.0))
+        return juce::String(roundedInt);
+
+    int decimals = 2;
+    if (std::abs(value) >= 1000.0)
+        decimals = 0;
+    else if (std::abs(value) >= 100.0)
+        decimals = 1;
+    else if (std::abs(value) >= 10.0)
+        decimals = isWhole ? 0 : 1;
+
+    auto text = juce::String(value, decimals);
+    while (text.contains(".") && (text.endsWith("0") || text.endsWith(".")))
+    {
+        if (text.endsWith("."))
+        {
+            text = text.dropLastCharacters(1);
+            break;
+        }
+
+        text = text.dropLastCharacters(1);
+    }
+
+    return text;
+}
 
 juce::Rectangle<int> getPanelBody(juce::Rectangle<int> bounds)
 {
@@ -40,7 +81,7 @@ void configureLabel(juce::Label& label, const juce::String& text)
     label.setText(text, juce::dontSendNotification);
     label.setJustificationType(juce::Justification::centred);
     label.setColour(juce::Label::textColourId, juce::Colour(0xffd7d9dd));
-    label.setFont(juce::Font(juce::FontOptions(12.5f, juce::Font::bold)));
+    label.setFont(juce::Font(juce::FontOptions(9.75f, juce::Font::bold)));
 }
 
 void styleHeaderButton(juce::TextButton& button, const AISynthAudioProcessorEditor::ThemePalette& theme, bool active)
@@ -234,7 +275,7 @@ void AISynthAudioProcessorEditor::SynthLookAndFeel::drawRotarySlider(juce::Graph
                                                                      float sliderPosProportional, float rotaryStartAngle,
                                                                      float rotaryEndAngle, juce::Slider&)
 {
-    auto bounds = juce::Rectangle<float>(static_cast<float>(x), static_cast<float>(y), static_cast<float>(width), static_cast<float>(height)).reduced(6.0f, 4.0f);
+    auto bounds = juce::Rectangle<float>(static_cast<float>(x), static_cast<float>(y), static_cast<float>(width), static_cast<float>(height)).reduced(4.0f, 2.0f);
     const auto diameter = juce::jmin(rotaryKnobDiameter, juce::jmin(bounds.getWidth(), bounds.getHeight()));
     auto knobBounds = juce::Rectangle<float>(diameter, diameter).withCentre(bounds.getCentre());
     const auto radius = knobBounds.getWidth() * 0.5f;
@@ -364,7 +405,13 @@ void AISynthAudioProcessorEditor::SynthLookAndFeel::drawComboBox(juce::Graphics&
 
 juce::Font AISynthAudioProcessorEditor::SynthLookAndFeel::getComboBoxFont(juce::ComboBox&)
 {
-    return juce::Font(juce::FontOptions(14.0f, juce::Font::bold));
+    return juce::Font(juce::FontOptions(11.0f, juce::Font::bold));
+}
+
+juce::Font AISynthAudioProcessorEditor::SynthLookAndFeel::getTextButtonFont(juce::TextButton&, int buttonHeight)
+{
+    juce::ignoreUnused(buttonHeight);
+    return juce::Font(juce::FontOptions(10.5f, juce::Font::bold));
 }
 
 juce::Label* AISynthAudioProcessorEditor::SynthLookAndFeel::createSliderTextBox(juce::Slider&)
@@ -374,8 +421,35 @@ juce::Label* AISynthAudioProcessorEditor::SynthLookAndFeel::createSliderTextBox(
     label->setColour(juce::Label::outlineColourId, theme.border);
     label->setColour(juce::Label::textColourId, theme.text);
     label->setJustificationType(juce::Justification::centred);
-    label->setFont(juce::Font(juce::FontOptions(12.0f, juce::Font::bold)));
+    label->setBorderSize({ 1, 4, 1, 4 });
+    label->setMinimumHorizontalScale(0.68f);
+    label->setFont(juce::Font(juce::FontOptions(9.0f, juce::Font::bold)));
     return label;
+}
+
+juce::Slider::SliderLayout AISynthAudioProcessorEditor::SynthLookAndFeel::getSliderLayout(juce::Slider& slider)
+{
+    auto layout = juce::LookAndFeel_V4::getSliderLayout(slider);
+    const auto style = slider.getSliderStyle();
+    const bool isRotary = style == juce::Slider::RotaryHorizontalVerticalDrag
+        || style == juce::Slider::Rotary
+        || style == juce::Slider::RotaryHorizontalDrag
+        || style == juce::Slider::RotaryVerticalDrag;
+
+    if (! isRotary || slider.getTextBoxPosition() != juce::Slider::TextBoxBelow)
+        return layout;
+
+    auto bounds = slider.getLocalBounds().reduced(4, 2);
+    const auto textBoxHeight = juce::jmin(rotaryTextBoxHeight, juce::jmax(18, bounds.getHeight() / 4));
+    const auto textBoxWidth = juce::jmin(rotaryTextBoxWidth, juce::jmax(50, bounds.getWidth() - 8));
+
+    auto textBoxBounds = bounds.removeFromBottom(textBoxHeight);
+    textBoxBounds = textBoxBounds.withSizeKeepingCentre(textBoxWidth, textBoxHeight);
+    bounds.removeFromBottom(4);
+
+    layout.sliderBounds = bounds;
+    layout.textBoxBounds = textBoxBounds;
+    return layout;
 }
 
 juce::String AISynthAudioProcessorEditor::getTopLevelGroupName(const juce::String& fullName)
@@ -410,6 +484,7 @@ AISynthAudioProcessorEditor::AISynthAudioProcessorEditor(AISynthAudioProcessor& 
         const auto prefix = "osc" + juce::String(osc);
         addChoice(prefix + "Wave", "Wave", waveformItems, "Select the oscillator waveform.");
         addChoice(prefix + "PwmSource", "PWM Mod", pwmSourceItems, "Choose which modulator drives pulse width.");
+        addToggle(prefix + "Bypass", "Bypass", "Mute this oscillator without changing its settings.");
         addSlider(prefix + "Level", "Level", "Set oscillator level.", juce::Slider::RotaryHorizontalVerticalDrag);
         addSlider(prefix + "Coarse", "Coarse", "Transpose this oscillator in semitones.", juce::Slider::RotaryHorizontalVerticalDrag);
         addSlider(prefix + "Fine", "Fine", "Fine tune this oscillator in cents.", juce::Slider::RotaryHorizontalVerticalDrag);
@@ -422,6 +497,7 @@ AISynthAudioProcessorEditor::AISynthAudioProcessorEditor(AISynthAudioProcessor& 
 
     addChoice("subWave", "Wave", subWaveformItems, "Select the sub oscillator waveform.");
     addChoice("subPwmSource", "PWM Mod", pwmSourceItems, "Choose which modulator drives sub pulse width.");
+    addToggle("subBypass", "Bypass", "Mute the sub oscillator without changing its settings.");
     addSlider("subLevel", "Level", "Sub oscillator level.", juce::Slider::RotaryHorizontalVerticalDrag);
     addSlider("subOctave", "Octave", "Transpose the sub oscillator down by octaves.", juce::Slider::RotaryHorizontalVerticalDrag);
     addSlider("subPulseWidth", "Pulse Width", "Set the base pulse width / waveform skew for the sub oscillator.", juce::Slider::RotaryHorizontalVerticalDrag);
@@ -489,22 +565,28 @@ AISynthAudioProcessorEditor::AISynthAudioProcessorEditor(AISynthAudioProcessor& 
         addSlider("seqStep" + juce::String(step) + "Velocity", "Vel " + juce::String(step), "Step velocity depth.", juce::Slider::LinearVertical);
     }
 
+    addToggle("delayBypass", "Bypass", "Disable the delay block.");
     addToggle("delaySync", "Delay Sync", "Sync delay timing to the host transport.");
     addChoice("delayDivision", "Delay Div", timingDivisionItems, "Choose the delay note value when sync is enabled.");
     addSlider("delayMix", "Delay Mix", "Delay dry/wet balance.", juce::Slider::RotaryHorizontalVerticalDrag);
     addSlider("delayFeedback", "Feedback", "Delay feedback amount.", juce::Slider::RotaryHorizontalVerticalDrag);
     addSlider("delayTime", "Delay Time", "Free-running delay time in seconds.", juce::Slider::RotaryHorizontalVerticalDrag);
 
+    addToggle("chorusBypass", "Bypass", "Disable the chorus block.");
     addSlider("chorusMix", "Chorus Mix", "Chorus dry/wet balance.", juce::Slider::RotaryHorizontalVerticalDrag);
     addSlider("chorusRate", "Chorus Rate", "Chorus rate.", juce::Slider::RotaryHorizontalVerticalDrag);
     addSlider("chorusDepth", "Chorus Depth", "Chorus depth.", juce::Slider::RotaryHorizontalVerticalDrag);
+    addToggle("driveBypass", "Bypass", "Disable the distortion and saturation block.");
     addSlider("distortionAmount", "Distortion", "Drive into distortion.", juce::Slider::RotaryHorizontalVerticalDrag);
     addSlider("saturationAmount", "Saturation", "Soft clipping and analogue-style thickening.", juce::Slider::RotaryHorizontalVerticalDrag);
+    addToggle("compressorBypass", "Bypass", "Disable the compressor block.");
     addSlider("compressorThreshold", "Comp Thresh", "Compressor threshold in dB.", juce::Slider::RotaryHorizontalVerticalDrag);
     addSlider("compressorRatio", "Comp Ratio", "Compressor ratio.", juce::Slider::RotaryHorizontalVerticalDrag);
+    addToggle("reverbBypass", "Bypass", "Disable the reverb block.");
     addSlider("reverbMix", "Reverb Mix", "Reverb dry/wet balance.", juce::Slider::RotaryHorizontalVerticalDrag);
     addSlider("reverbSize", "Reverb Size", "Reverb room size.", juce::Slider::RotaryHorizontalVerticalDrag);
     addSlider("reverbDamping", "Reverb Damp", "Reverb damping.", juce::Slider::RotaryHorizontalVerticalDrag);
+    addToggle("bitcrusherBypass", "Bypass", "Disable the bitcrusher block.");
     addSlider("bitcrusherMix", "Bit Mix", "Bitcrusher dry/wet balance.", juce::Slider::RotaryHorizontalVerticalDrag);
     addSlider("bitDepth", "Bit Depth", "Bit depth of the crusher.", juce::Slider::RotaryHorizontalVerticalDrag);
     addSlider("bitDownsample", "Downsample", "Downsample factor for the crusher.", juce::Slider::RotaryHorizontalVerticalDrag);
@@ -554,6 +636,7 @@ AISynthAudioProcessorEditor::AISynthAudioProcessorEditor(AISynthAudioProcessor& 
     addAndMakeVisible(presetGroupCombo);
 
     presetSearchEditor.setTooltip("Search presets by name.");
+    presetSearchEditor.setFont(juce::Font(juce::FontOptions(11.5f)));
     presetSearchEditor.setTextToShowWhenEmpty("Search presets", currentTheme.mutedText);
     presetSearchEditor.onTextChange = [this]
     {
@@ -591,6 +674,7 @@ AISynthAudioProcessorEditor::AISynthAudioProcessorEditor(AISynthAudioProcessor& 
     addAndMakeVisible(presetCombo);
 
     presetNameEditor.setTooltip("Name used when saving a new preset.");
+    presetNameEditor.setFont(juce::Font(juce::FontOptions(11.5f)));
     presetNameEditor.setText(getLeafName(audioProcessor.getCurrentPresetName()), juce::dontSendNotification);
     presetNameEditor.setColour(juce::TextEditor::backgroundColourId, juce::Colour(0xff101317));
     presetNameEditor.setColour(juce::TextEditor::outlineColourId, juce::Colour(0xff666d74));
@@ -666,6 +750,7 @@ AISynthAudioProcessorEditor::AISynthAudioProcessorEditor(AISynthAudioProcessor& 
     addAndMakeVisible(patternCombo);
 
     patternNameEditor.setTooltip("Name used when saving a sequencer pattern.");
+    patternNameEditor.setFont(juce::Font(juce::FontOptions(11.5f)));
     patternNameEditor.setText(getLeafName(audioProcessor.getCurrentPatternName()), juce::dontSendNotification);
     patternNameEditor.setColour(juce::TextEditor::backgroundColourId, juce::Colour(0xff101317));
     patternNameEditor.setColour(juce::TextEditor::outlineColourId, juce::Colour(0xff666d74));
@@ -688,8 +773,24 @@ AISynthAudioProcessorEditor::AISynthAudioProcessorEditor(AISynthAudioProcessor& 
     modulationTabButton.setButtonText("Mod");
     effectsTabButton.setButtonText("FX / Matrix");
     sequencerTabButton.setButtonText("Sequencer");
+    osc1TabButton.setButtonText("OSC 1");
+    osc2TabButton.setButtonText("OSC 2");
+    osc3TabButton.setButtonText("OSC 3");
+    subTabButton.setButtonText("SUB");
+    delayFxTabButton.setButtonText("Delay");
+    chorusFxTabButton.setButtonText("Chorus");
+    driveFxTabButton.setButtonText("Drive");
+    dynamicsFxTabButton.setButtonText("Dynamics");
+    reverbFxTabButton.setButtonText("Reverb");
+    crusherFxTabButton.setButtonText("Crusher");
+    voiceFilterTabButton.setButtonText("Tone");
+    voiceArpTabButton.setButtonText("Arp");
 
-    for (auto* button : { &voiceTabButton, &modulationTabButton, &effectsTabButton, &sequencerTabButton })
+    for (auto* button : { &voiceTabButton, &modulationTabButton, &effectsTabButton, &sequencerTabButton,
+                          &osc1TabButton, &osc2TabButton, &osc3TabButton, &subTabButton,
+                          &delayFxTabButton, &chorusFxTabButton, &driveFxTabButton,
+                          &dynamicsFxTabButton, &reverbFxTabButton, &crusherFxTabButton,
+                          &voiceFilterTabButton, &voiceArpTabButton })
     {
         button->setClickingTogglesState(false);
         addAndMakeVisible(*button);
@@ -699,6 +800,90 @@ AISynthAudioProcessorEditor::AISynthAudioProcessorEditor(AISynthAudioProcessor& 
     modulationTabButton.onClick = [this] { setActiveTab(ActiveTab::modulation); };
     effectsTabButton.onClick = [this] { setActiveTab(ActiveTab::effects); };
     sequencerTabButton.onClick = [this] { setActiveTab(ActiveTab::sequencer); };
+    osc1TabButton.onClick = [this]
+    {
+        oscillatorDetailTab = OscillatorDetailTab::osc1;
+        applyTheme();
+        resized();
+        repaint();
+    };
+    osc2TabButton.onClick = [this]
+    {
+        oscillatorDetailTab = OscillatorDetailTab::osc2;
+        applyTheme();
+        resized();
+        repaint();
+    };
+    osc3TabButton.onClick = [this]
+    {
+        oscillatorDetailTab = OscillatorDetailTab::osc3;
+        applyTheme();
+        resized();
+        repaint();
+    };
+    subTabButton.onClick = [this]
+    {
+        oscillatorDetailTab = OscillatorDetailTab::sub;
+        applyTheme();
+        resized();
+        repaint();
+    };
+    delayFxTabButton.onClick = [this]
+    {
+        effectsDetailTab = EffectsDetailTab::delay;
+        applyTheme();
+        resized();
+        repaint();
+    };
+    chorusFxTabButton.onClick = [this]
+    {
+        effectsDetailTab = EffectsDetailTab::chorus;
+        applyTheme();
+        resized();
+        repaint();
+    };
+    driveFxTabButton.onClick = [this]
+    {
+        effectsDetailTab = EffectsDetailTab::drive;
+        applyTheme();
+        resized();
+        repaint();
+    };
+    dynamicsFxTabButton.onClick = [this]
+    {
+        effectsDetailTab = EffectsDetailTab::dynamics;
+        applyTheme();
+        resized();
+        repaint();
+    };
+    reverbFxTabButton.onClick = [this]
+    {
+        effectsDetailTab = EffectsDetailTab::reverb;
+        applyTheme();
+        resized();
+        repaint();
+    };
+    crusherFxTabButton.onClick = [this]
+    {
+        effectsDetailTab = EffectsDetailTab::crusher;
+        applyTheme();
+        resized();
+        repaint();
+    };
+    voiceFilterTabButton.onClick = [this]
+    {
+        voiceDetailTab = VoiceDetailTab::filter;
+        applyTheme();
+        resized();
+        repaint();
+    };
+    voiceArpTabButton.onClick = [this]
+    {
+        voiceDetailTab = VoiceDetailTab::arp;
+        applyTheme();
+        resized();
+        repaint();
+    };
 
     stylePerformanceSlider(pitchWheelSlider, pitchWheelLabel, "PITCH", true);
     stylePerformanceSlider(modWheelSlider, modWheelLabel, "MOD", false);
@@ -737,9 +922,17 @@ juce::Slider& AISynthAudioProcessorEditor::addSlider(const juce::String& id, con
     const auto isHorizontal = style == juce::Slider::LinearHorizontal || style == juce::Slider::LinearBar;
     slider->setTextBoxStyle(isHorizontal ? juce::Slider::TextBoxRight : juce::Slider::TextBoxBelow,
                             false,
-                            isHorizontal ? 60 : 68,
-                            20);
+                            isHorizontal ? 60 : rotaryTextBoxWidth,
+                            rotaryTextBoxHeight);
     slider->setTooltip(tooltip);
+    slider->textFromValueFunction = [id] (double value)
+    {
+        return formatSliderValue(id, value);
+    };
+    slider->valueFromTextFunction = [] (const juce::String& text)
+    {
+        return text.getDoubleValue();
+    };
     addAndMakeVisible(slider);
 
     if (auto* midiSlider = dynamic_cast<MidiLearnSlider*>(slider))
@@ -809,13 +1002,14 @@ AISynthAudioProcessorEditor::ToggleMeta* AISynthAudioProcessorEditor::findToggle
     return nullptr;
 }
 
-void AISynthAudioProcessorEditor::layoutKnobGrid(juce::Rectangle<int> area, std::initializer_list<const char*> ids, int columns)
+void AISynthAudioProcessorEditor::layoutKnobGrid(juce::Rectangle<int> area, std::initializer_list<const char*> ids, int columns,
+                                                 int labelHeight, int cellPadding, float labelFontSize, int minimumRows)
 {
     const auto count = static_cast<int>(ids.size());
     if (count == 0)
         return;
 
-    const auto rows = juce::jmax(1, (count + columns - 1) / columns);
+    const auto rows = juce::jmax(juce::jmax(1, (count + columns - 1) / columns), minimumRows);
     const auto cellW = area.getWidth() / columns;
     const auto cellH = area.getHeight() / rows;
 
@@ -826,11 +1020,16 @@ void AISynthAudioProcessorEditor::layoutKnobGrid(juce::Rectangle<int> area, std:
         {
             auto cell = juce::Rectangle<int>(area.getX() + (index % columns) * cellW,
                                              area.getY() + (index / columns) * cellH,
-                                             cellW, cellH).reduced(2);
+                                             cellW, cellH).reduced(cellPadding, 2);
             meta->slider->setVisible(true);
             meta->label->setVisible(true);
-            meta->label->setBounds(cell.removeFromTop(18));
-            meta->slider->setBounds(cell);
+            meta->label->setFont(juce::Font(juce::FontOptions(labelFontSize, juce::Font::bold)));
+            meta->label->setBounds(cell.removeFromTop(labelHeight));
+
+            auto sliderBounds = cell.reduced(2, 0);
+            const auto sliderWidth = juce::jmin(sliderBounds.getWidth(), rotaryControlWidth);
+            const auto sliderHeight = juce::jmin(sliderBounds.getHeight(), rotaryControlHeight);
+            meta->slider->setBounds(sliderBounds.withSizeKeepingCentre(sliderWidth, sliderHeight));
         }
 
         ++index;
@@ -852,8 +1051,8 @@ void AISynthAudioProcessorEditor::layoutChoiceRow(juce::Rectangle<int> area, std
             auto cell = juce::Rectangle<int>(x, area.getY(), width, area.getHeight()).reduced(4);
             meta->combo->setVisible(true);
             meta->label->setVisible(true);
-            meta->label->setBounds(cell.removeFromTop(18));
-            meta->combo->setBounds(cell.removeFromTop(32));
+            meta->label->setBounds(cell.removeFromTop(15));
+            meta->combo->setBounds(cell.removeFromTop(30));
         }
 
         x += width;
@@ -948,41 +1147,72 @@ void AISynthAudioProcessorEditor::layoutMatrixRows(juce::Rectangle<int> area)
 void AISynthAudioProcessorEditor::layoutOscillatorSections(juce::Rectangle<int> area)
 {
     auto body = getPanelBody(area);
-    const auto gap = 8;
-    const auto sectionWidth = (body.getWidth() - gap * 3) / 4;
+    oscillatorSectionBounds = {};
+    oscillatorTabsBounds = body.removeFromTop(34);
 
-    for (int index = 0; index < 4; ++index)
+    auto oscTabs = oscillatorTabsBounds.reduced(2, 2);
+    const auto tabGap = 6;
+    const auto tabWidth = (oscTabs.getWidth() - tabGap * 3) / 4;
+    osc1TabButton.setBounds(oscTabs.removeFromLeft(tabWidth));
+    oscTabs.removeFromLeft(tabGap);
+    osc2TabButton.setBounds(oscTabs.removeFromLeft(tabWidth));
+    oscTabs.removeFromLeft(tabGap);
+    osc3TabButton.setBounds(oscTabs.removeFromLeft(tabWidth));
+    oscTabs.removeFromLeft(tabGap);
+    subTabButton.setBounds(oscTabs);
+
+    body.removeFromTop(8);
+    auto section = body;
+    const auto activeIndex = [&]
     {
-        auto section = body.removeFromLeft(sectionWidth);
-        oscillatorSectionBounds[static_cast<size_t>(index)] = section;
-        if (index < 3)
-            body.removeFromLeft(gap);
+        switch (oscillatorDetailTab)
+        {
+            case OscillatorDetailTab::osc2: return 1;
+            case OscillatorDetailTab::osc3: return 2;
+            case OscillatorDetailTab::sub:  return 3;
+            case OscillatorDetailTab::osc1:
+            default:                        return 0;
+        }
+    }();
 
-        auto inner = section.reduced(8, 26);
+    oscillatorSectionBounds[static_cast<size_t>(activeIndex)] = section;
+    auto inner = section.reduced(12, 26);
 
-        if (index == 0)
-        {
-            layoutChoiceRow(inner.removeFromTop(54), { "osc1Wave", "osc1PwmSource" });
-            layoutKnobGrid(inner, { "osc1Level", "osc1Coarse", "osc1Fine", "osc1PulseWidth", "osc1PwmAmount" }, 2);
-        }
-        else if (index == 1)
-        {
-            layoutChoiceRow(inner.removeFromTop(54), { "osc2Wave", "osc2PwmSource" });
-            layoutChoiceRow(inner.removeFromTop(52), { "osc2SyncSource" });
-            layoutKnobGrid(inner, { "osc2Level", "osc2Coarse", "osc2Fine", "osc2PulseWidth", "osc2PwmAmount" }, 2);
-        }
-        else if (index == 2)
-        {
-            layoutChoiceRow(inner.removeFromTop(54), { "osc3Wave", "osc3PwmSource" });
-            layoutChoiceRow(inner.removeFromTop(52), { "osc3SyncSource" });
-            layoutKnobGrid(inner, { "osc3Level", "osc3Coarse", "osc3Fine", "osc3PulseWidth", "osc3PwmAmount" }, 2);
-        }
-        else
-        {
-            layoutChoiceRow(inner.removeFromTop(54), { "subWave", "subPwmSource" });
-            inner.removeFromTop(52);
-            layoutKnobGrid(inner, { "subLevel", "subOctave", "subPulseWidth", "subPwmAmount" }, 2);
-        }
+    if (oscillatorDetailTab == OscillatorDetailTab::osc1)
+    {
+        layoutToggleRow(inner.removeFromTop(28).removeFromRight(140), { "osc1Bypass" });
+        inner.removeFromTop(4);
+        layoutChoiceRow(inner.removeFromTop(54), { "osc1Wave", "osc1PwmSource" });
+        inner.removeFromTop(6);
+        layoutKnobGrid(inner, { "osc1Level", "osc1Coarse", "osc1Fine", "osc1PulseWidth", "osc1PwmAmount" }, 3, 16, 2, 10.0f, 2);
+    }
+    else if (oscillatorDetailTab == OscillatorDetailTab::osc2)
+    {
+        layoutToggleRow(inner.removeFromTop(28).removeFromRight(140), { "osc2Bypass" });
+        inner.removeFromTop(4);
+        layoutChoiceRow(inner.removeFromTop(54), { "osc2Wave", "osc2PwmSource" });
+        inner.removeFromTop(4);
+        layoutChoiceRow(inner.removeFromTop(50), { "osc2SyncSource" });
+        inner.removeFromTop(6);
+        layoutKnobGrid(inner, { "osc2Level", "osc2Coarse", "osc2Fine", "osc2PulseWidth", "osc2PwmAmount" }, 3, 16, 2, 10.0f, 2);
+    }
+    else if (oscillatorDetailTab == OscillatorDetailTab::osc3)
+    {
+        layoutToggleRow(inner.removeFromTop(28).removeFromRight(140), { "osc3Bypass" });
+        inner.removeFromTop(4);
+        layoutChoiceRow(inner.removeFromTop(54), { "osc3Wave", "osc3PwmSource" });
+        inner.removeFromTop(4);
+        layoutChoiceRow(inner.removeFromTop(50), { "osc3SyncSource" });
+        inner.removeFromTop(6);
+        layoutKnobGrid(inner, { "osc3Level", "osc3Coarse", "osc3Fine", "osc3PulseWidth", "osc3PwmAmount" }, 3, 16, 2, 10.0f, 2);
+    }
+    else
+    {
+        layoutToggleRow(inner.removeFromTop(28).removeFromRight(140), { "subBypass" });
+        inner.removeFromTop(4);
+        layoutChoiceRow(inner.removeFromTop(54), { "subWave", "subPwmSource" });
+        inner.removeFromTop(60);
+        layoutKnobGrid(inner, { "subLevel", "subOctave", "subPulseWidth", "subPwmAmount" }, 2, 16, 2, 10.0f, 2);
     }
 }
 
@@ -1021,9 +1251,11 @@ void AISynthAudioProcessorEditor::layoutLfoSections(juce::Rectangle<int> area)
 void AISynthAudioProcessorEditor::layoutPresetPanel(juce::Rectangle<int> area)
 {
     auto body = getPanelBody(area);
-    auto presetArea = body.removeFromLeft(760);
+    auto presetArea = body.removeFromLeft(static_cast<int>(body.getWidth() * 0.56f));
+    constexpr int controlRowHeight = 30;
+    constexpr int actionButtonWidth = 92;
 
-    auto topRow = presetArea.removeFromTop(30);
+    auto topRow = presetArea.removeFromTop(controlRowHeight);
     presetGroupLabel.setBounds(topRow.removeFromLeft(70));
     presetGroupCombo.setBounds(topRow.removeFromLeft(170).reduced(2, 0));
     topRow.removeFromLeft(8);
@@ -1032,7 +1264,7 @@ void AISynthAudioProcessorEditor::layoutPresetPanel(juce::Rectangle<int> area)
 
     presetArea.removeFromTop(6);
 
-    auto middleRow = presetArea.removeFromTop(30);
+    auto middleRow = presetArea.removeFromTop(controlRowHeight);
     presetNameLabel.setBounds(middleRow.removeFromLeft(70));
     presetCombo.setBounds(middleRow.removeFromLeft(390).reduced(2, 0));
     middleRow.removeFromLeft(8);
@@ -1040,19 +1272,19 @@ void AISynthAudioProcessorEditor::layoutPresetPanel(juce::Rectangle<int> area)
 
     presetArea.removeFromTop(6);
 
-    auto bottomRow = presetArea.removeFromTop(30);
+    auto bottomRow = presetArea.removeFromTop(controlRowHeight);
     presetNameEditor.setBounds(bottomRow.removeFromLeft(296).reduced(2, 0));
     bottomRow.removeFromLeft(8);
-    presetMenuButton.setBounds(bottomRow.removeFromLeft(108).reduced(2, 0));
+    presetMenuButton.setBounds(bottomRow.removeFromLeft(actionButtonWidth).reduced(2, 0));
     bottomRow.removeFromLeft(4);
-    savePresetButton.setBounds(bottomRow.removeFromLeft(104).reduced(2, 0));
+    savePresetButton.setBounds(bottomRow.removeFromLeft(actionButtonWidth).reduced(2, 0));
     bottomRow.removeFromLeft(4);
-    reloadPresetButton.setBounds(bottomRow.removeFromLeft(96).reduced(2, 0));
+    reloadPresetButton.setBounds(bottomRow.removeFromLeft(actionButtonWidth).reduced(2, 0));
     bottomRow.removeFromLeft(4);
-    initPresetButton.setBounds(bottomRow.removeFromLeft(74).reduced(2, 0));
+    initPresetButton.setBounds(bottomRow.removeFromLeft(actionButtonWidth).reduced(2, 0));
 
-    body.removeFromLeft(10);
-    auto wheelArea = body.removeFromLeft(170);
+    body.removeFromLeft(12);
+    auto wheelArea = body.removeFromLeft(150);
     auto pitchArea = wheelArea.removeFromLeft(wheelArea.getWidth() / 2).reduced(4);
     auto modArea = wheelArea.reduced(4);
 
@@ -1061,10 +1293,8 @@ void AISynthAudioProcessorEditor::layoutPresetPanel(juce::Rectangle<int> area)
     modWheelLabel.setBounds(modArea.removeFromTop(18));
     modWheelSlider.setBounds(modArea);
 
-    body.removeFromLeft(12);
+    body.removeFromLeft(16);
     layoutChoiceRow(body.removeFromTop(54), { "keyMode", "portamentoMode" });
-    body.removeFromTop(4);
-    layoutKnobGrid(body, { "masterGain", "pitchBendRange", "voiceCount", "portamentoTime", "unisonVoices", "unisonDetune", "stereoWidth" }, 7);
 }
 
 void AISynthAudioProcessorEditor::layoutSequencerPanel(juce::Rectangle<int> area)
@@ -1278,6 +1508,18 @@ void AISynthAudioProcessorEditor::applyTheme()
     styleHeaderButton(modulationTabButton, currentTheme, activeTab == ActiveTab::modulation);
     styleHeaderButton(effectsTabButton, currentTheme, activeTab == ActiveTab::effects);
     styleHeaderButton(sequencerTabButton, currentTheme, activeTab == ActiveTab::sequencer);
+    styleHeaderButton(osc1TabButton, currentTheme, oscillatorDetailTab == OscillatorDetailTab::osc1);
+    styleHeaderButton(osc2TabButton, currentTheme, oscillatorDetailTab == OscillatorDetailTab::osc2);
+    styleHeaderButton(osc3TabButton, currentTheme, oscillatorDetailTab == OscillatorDetailTab::osc3);
+    styleHeaderButton(subTabButton, currentTheme, oscillatorDetailTab == OscillatorDetailTab::sub);
+    styleHeaderButton(delayFxTabButton, currentTheme, effectsDetailTab == EffectsDetailTab::delay);
+    styleHeaderButton(chorusFxTabButton, currentTheme, effectsDetailTab == EffectsDetailTab::chorus);
+    styleHeaderButton(driveFxTabButton, currentTheme, effectsDetailTab == EffectsDetailTab::drive);
+    styleHeaderButton(dynamicsFxTabButton, currentTheme, effectsDetailTab == EffectsDetailTab::dynamics);
+    styleHeaderButton(reverbFxTabButton, currentTheme, effectsDetailTab == EffectsDetailTab::reverb);
+    styleHeaderButton(crusherFxTabButton, currentTheme, effectsDetailTab == EffectsDetailTab::crusher);
+    styleHeaderButton(voiceFilterTabButton, currentTheme, voiceDetailTab == VoiceDetailTab::filter);
+    styleHeaderButton(voiceArpTabButton, currentTheme, voiceDetailTab == VoiceDetailTab::arp);
 
     refreshMidiLearnDecorations();
     refreshBackgroundTexture();
@@ -1636,7 +1878,7 @@ void AISynthAudioProcessorEditor::setActiveTab(ActiveTab newTab)
 void AISynthAudioProcessorEditor::stylePerformanceSlider(juce::Slider& slider, juce::Label& label, const juce::String& text, bool centreOnRelease)
 {
     slider.setSliderStyle(juce::Slider::LinearVertical);
-    slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 58, 20);
+    slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, rotaryTextBoxHeight);
     slider.setVelocityBasedMode(false);
     slider.setMouseDragSensitivity(180);
     slider.setTooltip(centreOnRelease ? "Spring-loaded pitch wheel." : "Mod wheel controller.");
@@ -1711,14 +1953,46 @@ void AISynthAudioProcessorEditor::paint(juce::Graphics& g)
     drawTabGlow(modulationTabButton, activeTab == ActiveTab::modulation);
     drawTabGlow(effectsTabButton, activeTab == ActiveTab::effects);
     drawTabGlow(sequencerTabButton, activeTab == ActiveTab::sequencer);
+    drawTabGlow(osc1TabButton, activeTab == ActiveTab::voice && oscillatorDetailTab == OscillatorDetailTab::osc1);
+    drawTabGlow(osc2TabButton, activeTab == ActiveTab::voice && oscillatorDetailTab == OscillatorDetailTab::osc2);
+    drawTabGlow(osc3TabButton, activeTab == ActiveTab::voice && oscillatorDetailTab == OscillatorDetailTab::osc3);
+    drawTabGlow(subTabButton, activeTab == ActiveTab::voice && oscillatorDetailTab == OscillatorDetailTab::sub);
+    drawTabGlow(delayFxTabButton, activeTab == ActiveTab::effects && effectsDetailTab == EffectsDetailTab::delay);
+    drawTabGlow(chorusFxTabButton, activeTab == ActiveTab::effects && effectsDetailTab == EffectsDetailTab::chorus);
+    drawTabGlow(driveFxTabButton, activeTab == ActiveTab::effects && effectsDetailTab == EffectsDetailTab::drive);
+    drawTabGlow(dynamicsFxTabButton, activeTab == ActiveTab::effects && effectsDetailTab == EffectsDetailTab::dynamics);
+    drawTabGlow(reverbFxTabButton, activeTab == ActiveTab::effects && effectsDetailTab == EffectsDetailTab::reverb);
+    drawTabGlow(crusherFxTabButton, activeTab == ActiveTab::effects && effectsDetailTab == EffectsDetailTab::crusher);
+    drawTabGlow(voiceFilterTabButton, activeTab == ActiveTab::voice && voiceDetailTab == VoiceDetailTab::filter);
+    drawTabGlow(voiceArpTabButton, activeTab == ActiveTab::voice && voiceDetailTab == VoiceDetailTab::arp);
 
     drawPanel(g, presetPanelBounds, "Presets / Performance", "Grouped browser, search, save/load, wheels, theme, and quick controls", currentTheme, animationPhase);
 
     if (activeTab == ActiveTab::voice)
     {
         drawPanel(g, oscillatorPanelBounds, "Oscillator Bank", "Three main oscillators plus sub, sync and PWM routing", currentTheme, animationPhase);
-        drawPanel(g, filterPanelBounds, "Filter / Tone", "Tone shaping, envelope drive and TB-style accent response", currentTheme, animationPhase);
-        drawPanel(g, arpPanelBounds, "Arp / Rhythm Gate", "Pattern sequencing, latch and chopper timing before the sequencer tab", currentTheme, animationPhase);
+        if (! oscillatorTabsBounds.isEmpty())
+        {
+            auto tabArea = oscillatorTabsBounds.toFloat();
+            g.setColour(currentTheme.overlay.withAlpha(0.18f));
+            g.fillRoundedRectangle(tabArea, 10.0f);
+            g.setColour(currentTheme.border.withAlpha(0.75f));
+            g.drawRoundedRectangle(tabArea, 10.0f, 1.0f);
+        }
+        if (! voiceDetailTabsBounds.isEmpty())
+        {
+            auto tabArea = voiceDetailTabsBounds.toFloat();
+            g.setColour(currentTheme.overlay.withAlpha(0.18f));
+            g.fillRoundedRectangle(tabArea, 10.0f);
+            g.setColour(currentTheme.border.withAlpha(0.75f));
+            g.drawRoundedRectangle(tabArea, 10.0f, 1.0f);
+        }
+
+        if (! filterPanelBounds.isEmpty())
+            drawPanel(g, filterPanelBounds, "Filter / Tone", "Tone shaping, envelope drive and TB-style accent response", currentTheme, animationPhase);
+
+        if (! arpPanelBounds.isEmpty())
+            drawPanel(g, arpPanelBounds, "Arp / Rhythm Gate", "Pattern sequencing, latch and chopper timing before the sequencer tab", currentTheme, animationPhase);
     }
     else if (activeTab == ActiveTab::modulation)
     {
@@ -1729,6 +2003,14 @@ void AISynthAudioProcessorEditor::paint(juce::Graphics& g)
     else if (activeTab == ActiveTab::effects)
     {
         drawPanel(g, fxPanelBounds, "Effects Rack", "Host-sync delay plus chorus, drive, dynamics, reverb and crush", currentTheme, animationPhase);
+        if (! fxTabsBounds.isEmpty())
+        {
+            auto tabArea = fxTabsBounds.toFloat();
+            g.setColour(currentTheme.overlay.withAlpha(0.18f));
+            g.fillRoundedRectangle(tabArea, 10.0f);
+            g.setColour(currentTheme.border.withAlpha(0.75f));
+            g.drawRoundedRectangle(tabArea, 10.0f, 1.0f);
+        }
         drawPanel(g, matrixPanelBounds, "Modulation Matrix", "Four flexible routing lanes for pitch, filter, PWM and drive", currentTheme, animationPhase);
     }
     else if (activeTab == ActiveTab::sequencer)
@@ -1878,35 +2160,71 @@ void AISynthAudioProcessorEditor::resized()
     layoutPresetPanel(presetPanelBounds);
 
     oscillatorPanelBounds = {};
+    oscillatorTabsBounds = {};
+    voiceDetailTabsBounds = {};
     filterPanelBounds = {};
     arpPanelBounds = {};
     env1PanelBounds = {};
     env2PanelBounds = {};
     lfoPanelBounds = {};
     fxPanelBounds = {};
+    fxTabsBounds = {};
     matrixPanelBounds = {};
     sequencerPanelBounds = {};
+
+    const auto showingVoiceControls = activeTab == ActiveTab::voice;
+    const auto showingEffectsControls = activeTab == ActiveTab::effects;
+    osc1TabButton.setVisible(showingVoiceControls);
+    osc2TabButton.setVisible(showingVoiceControls);
+    osc3TabButton.setVisible(showingVoiceControls);
+    subTabButton.setVisible(showingVoiceControls);
+    delayFxTabButton.setVisible(showingEffectsControls);
+    chorusFxTabButton.setVisible(showingEffectsControls);
+    driveFxTabButton.setVisible(showingEffectsControls);
+    dynamicsFxTabButton.setVisible(showingEffectsControls);
+    reverbFxTabButton.setVisible(showingEffectsControls);
+    crusherFxTabButton.setVisible(showingEffectsControls);
+    voiceFilterTabButton.setVisible(showingVoiceControls);
+    voiceArpTabButton.setVisible(showingVoiceControls);
 
     if (activeTab == ActiveTab::voice)
     {
         auto rightColumn = contentArea;
-        oscillatorPanelBounds = rightColumn.removeFromLeft(static_cast<int>(contentArea.getWidth() * 0.60f));
+        oscillatorPanelBounds = rightColumn.removeFromLeft(static_cast<int>(contentArea.getWidth() * 0.56f));
         rightColumn.removeFromLeft(gap);
-        filterPanelBounds = rightColumn.removeFromTop(static_cast<int>(contentArea.getHeight() * 0.52f));
+
+        voiceDetailTabsBounds = rightColumn.removeFromTop(34);
+        auto detailTabs = voiceDetailTabsBounds.reduced(2, 2);
+        const auto detailGap = 6;
+        const auto detailWidth = (detailTabs.getWidth() - detailGap) / 2;
+        voiceFilterTabButton.setBounds(detailTabs.removeFromLeft(detailWidth));
+        detailTabs.removeFromLeft(detailGap);
+        voiceArpTabButton.setBounds(detailTabs);
         rightColumn.removeFromTop(gap);
-        arpPanelBounds = rightColumn;
 
         layoutOscillatorSections(oscillatorPanelBounds);
 
-        auto filterBody = getPanelBody(filterPanelBounds);
-        layoutChoiceRow(filterBody.removeFromTop(54), { "filterType" });
-        layoutKnobGrid(filterBody, { "cutoff", "resonance", "drive", "filterAccent", "env1ToFilter", "env2ToFilter" }, 3);
-
-        auto arpBody = getPanelBody(arpPanelBounds);
-        layoutChoiceRow(arpBody.removeFromTop(54), { "arpMode", "rhythmGatePattern" });
-        layoutToggleRow(arpBody.removeFromTop(28), { "arpEnabled", "arpLatch", "rhythmGateEnabled" });
-        arpBody.removeFromTop(6);
-        layoutKnobGrid(arpBody, { "arpRate", "arpGate", "arpOctaves", "rhythmGateRate", "rhythmGateDepth" }, 3);
+        if (voiceDetailTab == VoiceDetailTab::filter)
+        {
+            filterPanelBounds = rightColumn;
+            auto filterBody = getPanelBody(filterPanelBounds);
+            auto globalBody = filterBody.removeFromTop(92);
+            layoutKnobGrid(globalBody, { "masterGain", "pitchBendRange", "voiceCount", "portamentoTime",
+                                         "unisonVoices", "unisonDetune", "stereoWidth" }, 7, 14, 1, 7.8f, 1);
+            filterBody.removeFromTop(8);
+            layoutChoiceRow(filterBody.removeFromTop(50), { "filterType" });
+            filterBody.removeFromTop(8);
+            layoutKnobGrid(filterBody, { "cutoff", "resonance", "drive", "filterAccent", "env1ToFilter", "env2ToFilter" }, 3, 18, 4, 10.5f, 2);
+        }
+        else
+        {
+            arpPanelBounds = rightColumn;
+            auto arpBody = getPanelBody(arpPanelBounds);
+            layoutChoiceRow(arpBody.removeFromTop(54), { "arpMode", "rhythmGatePattern" });
+            layoutToggleRow(arpBody.removeFromTop(28), { "arpEnabled", "arpLatch", "rhythmGateEnabled" });
+            arpBody.removeFromTop(6);
+            layoutKnobGrid(arpBody, { "arpRate", "arpGate", "arpOctaves", "rhythmGateRate", "rhythmGateDepth" }, 3, 16, 1, 11.0f);
+        }
     }
     else if (activeTab == ActiveTab::modulation)
     {
@@ -1942,29 +2260,62 @@ void AISynthAudioProcessorEditor::resized()
         matrixPanelBounds = contentArea;
 
         auto fxBody = getPanelBody(fxPanelBounds);
-        auto delayHeader = fxBody.removeFromTop(54);
-        if (auto* delaySync = findToggle("delaySync"))
+        fxTabsBounds = fxBody.removeFromTop(34);
+        auto fxTabs = fxTabsBounds.reduced(2, 2);
+        const auto fxTabGap = 6;
+        const auto fxTabWidth = (fxTabs.getWidth() - fxTabGap * 5) / 6;
+        delayFxTabButton.setBounds(fxTabs.removeFromLeft(fxTabWidth));
+        fxTabs.removeFromLeft(fxTabGap);
+        chorusFxTabButton.setBounds(fxTabs.removeFromLeft(fxTabWidth));
+        fxTabs.removeFromLeft(fxTabGap);
+        driveFxTabButton.setBounds(fxTabs.removeFromLeft(fxTabWidth));
+        fxTabs.removeFromLeft(fxTabGap);
+        dynamicsFxTabButton.setBounds(fxTabs.removeFromLeft(fxTabWidth));
+        fxTabs.removeFromLeft(fxTabGap);
+        reverbFxTabButton.setBounds(fxTabs.removeFromLeft(fxTabWidth));
+        fxTabs.removeFromLeft(fxTabGap);
+        crusherFxTabButton.setBounds(fxTabs);
+
+        fxBody.removeFromTop(gap);
+
+        if (effectsDetailTab == EffectsDetailTab::delay)
         {
-            delaySync->button->setVisible(true);
-            delaySync->button->setBounds(delayHeader.removeFromLeft(148).reduced(4, 10));
+            layoutToggleRow(fxBody.removeFromTop(28).removeFromLeft(280), { "delayBypass", "delaySync" });
+            fxBody.removeFromTop(6);
+            layoutChoiceRow(fxBody.removeFromTop(48), { "delayDivision" });
+            fxBody.removeFromTop(6);
+            layoutKnobGrid(fxBody, { "delayMix", "delayFeedback", "delayTime" }, 3, 16, 2, 10.0f, 1);
         }
-
-        delayHeader.removeFromLeft(8);
-
-        if (auto* delayDivision = findChoice("delayDivision"))
+        else if (effectsDetailTab == EffectsDetailTab::chorus)
         {
-            auto cell = delayHeader.reduced(4, 0);
-            delayDivision->combo->setVisible(true);
-            delayDivision->label->setVisible(true);
-            delayDivision->label->setBounds(cell.removeFromTop(18));
-            delayDivision->combo->setBounds(cell.removeFromTop(32));
+            layoutToggleRow(fxBody.removeFromTop(28).removeFromLeft(140), { "chorusBypass" });
+            fxBody.removeFromTop(6);
+            layoutKnobGrid(fxBody, { "chorusMix", "chorusRate", "chorusDepth" }, 3, 16, 2, 10.0f, 1);
         }
-
-        fxBody.removeFromTop(6);
-        layoutKnobGrid(fxBody, { "delayMix", "delayFeedback", "delayTime", "chorusMix",
-                                 "chorusRate", "chorusDepth", "distortionAmount", "saturationAmount",
-                                 "compressorThreshold", "compressorRatio", "reverbMix", "reverbSize",
-                                 "reverbDamping", "bitcrusherMix", "bitDepth", "bitDownsample" }, 4);
+        else if (effectsDetailTab == EffectsDetailTab::drive)
+        {
+            layoutToggleRow(fxBody.removeFromTop(28).removeFromLeft(140), { "driveBypass" });
+            fxBody.removeFromTop(6);
+            layoutKnobGrid(fxBody, { "distortionAmount", "saturationAmount" }, 2, 16, 2, 10.0f, 1);
+        }
+        else if (effectsDetailTab == EffectsDetailTab::dynamics)
+        {
+            layoutToggleRow(fxBody.removeFromTop(28).removeFromLeft(160), { "compressorBypass" });
+            fxBody.removeFromTop(6);
+            layoutKnobGrid(fxBody, { "compressorThreshold", "compressorRatio" }, 2, 16, 2, 10.0f, 1);
+        }
+        else if (effectsDetailTab == EffectsDetailTab::reverb)
+        {
+            layoutToggleRow(fxBody.removeFromTop(28).removeFromLeft(140), { "reverbBypass" });
+            fxBody.removeFromTop(6);
+            layoutKnobGrid(fxBody, { "reverbMix", "reverbSize", "reverbDamping" }, 3, 16, 2, 10.0f, 1);
+        }
+        else
+        {
+            layoutToggleRow(fxBody.removeFromTop(28).removeFromLeft(160), { "bitcrusherBypass" });
+            fxBody.removeFromTop(6);
+            layoutKnobGrid(fxBody, { "bitcrusherMix", "bitDepth", "bitDownsample" }, 3, 16, 2, 10.0f, 1);
+        }
 
         layoutMatrixRows(matrixPanelBounds);
     }

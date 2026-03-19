@@ -20,6 +20,7 @@ int mapSubWaveformToMainIndex(int subWaveform)
 SynthVoice::SynthVoice(AISynthAudioProcessor& processorRef) : processor(processorRef)
 {
     filter.setType(juce::dsp::StateVariableTPTFilterType::lowpass);
+    filter24dBStage.setType(juce::dsp::StateVariableTPTFilterType::lowpass);
 }
 
 bool SynthVoice::canPlaySound(juce::SynthesiserSound* sound)
@@ -35,6 +36,7 @@ void SynthVoice::prepare(double sampleRate, int samplesPerBlock, int numChannels
 
     juce::dsp::ProcessSpec localSpec { sampleRate, static_cast<juce::uint32>(samplesPerBlock), static_cast<juce::uint32>(juce::jmax(1, numChannels)) };
     filter.prepare(localSpec);
+    filter24dBStage.prepare(localSpec);
 }
 
 void SynthVoice::setPendingPortamento(bool shouldGlide, bool preserveEnvelope) noexcept
@@ -111,6 +113,7 @@ void SynthVoice::startNote(int midiNoteNumber, float velocity, juce::Synthesiser
         ampAdsr.noteOn();
         modAdsr.noteOn();
         filter.reset();
+        filter24dBStage.reset();
     }
 }
 
@@ -316,6 +319,14 @@ void SynthVoice::renderNextBlock(juce::AudioBuffer<float>& outputBuffer, int sta
         processor.getParam("subLevel")
     };
 
+    const std::array<bool, numOscillators> bypassed
+    {
+        processor.getParam("osc1Bypass") > 0.5f,
+        processor.getParam("osc2Bypass") > 0.5f,
+        processor.getParam("osc3Bypass") > 0.5f,
+        processor.getParam("subBypass") > 0.5f
+    };
+
     const std::array<float, numOscillators> coarseSemitones
     {
         processor.getParam("osc1Coarse"),
@@ -426,12 +437,16 @@ void SynthVoice::renderNextBlock(juce::AudioBuffer<float>& outputBuffer, int sta
     const auto pitchBendNormalised = juce::jmap(static_cast<float>(currentPitchWheelValue), 0.0f, 16383.0f, -1.0f, 1.0f);
     const auto unisonCount = juce::jmax(1, static_cast<int>(oscillatorPhases.size()));
 
+    const auto use24dBLowPass = filterType == 3;
     switch (filterType)
     {
         case 1: filter.setType(juce::dsp::StateVariableTPTFilterType::bandpass); break;
         case 2: filter.setType(juce::dsp::StateVariableTPTFilterType::highpass); break;
+        case 3: filter.setType(juce::dsp::StateVariableTPTFilterType::lowpass); break;
         default: filter.setType(juce::dsp::StateVariableTPTFilterType::lowpass); break;
     }
+
+    filter24dBStage.setType(juce::dsp::StateVariableTPTFilterType::lowpass);
 
     while (--numSamples >= 0)
     {
@@ -463,12 +478,14 @@ void SynthVoice::renderNextBlock(juce::AudioBuffer<float>& outputBuffer, int sta
         const auto accent = filterAccent * juce::jlimit(0.0f, 1.0f, juce::jmap(noteVelocity, 0.45f, 1.0f, 0.0f, 1.0f));
         const auto pitchOffset = (pitchBendNormalised * pitchBendRange) + (env2 * env2ToPitch) + modulation.pitchSemitones;
         const auto dynamicCutoff = juce::jlimit(40.0f, 18000.0f, cutoff + (env1 * env1ToFilter * 10000.0f) + (env2 * env2ToFilter * 10000.0f) + modulation.cutoffHz + accent * 5200.0f);
-        const auto dynamicResonance = juce::jlimit(0.1f, 1.8f, resonance + modulation.resonance + accent * 0.22f);
+        const auto dynamicResonance = juce::jlimit(0.1f, 2.4f, resonance + modulation.resonance + accent * 0.22f);
         const auto dynamicDrive = juce::jlimit(0.0f, 1.6f, drive + modulation.drive + accent * 0.28f);
         const auto dynamicDetune = juce::jmax(0.0f, unisonDetune + modulation.detuneCents);
 
         filter.setCutoffFrequency(dynamicCutoff);
         filter.setResonance(dynamicResonance);
+        filter24dBStage.setCutoffFrequency(dynamicCutoff);
+        filter24dBStage.setResonance(juce::jlimit(0.1f, 2.0f, dynamicResonance * 0.82f));
 
         float left = 0.0f;
         float right = 0.0f;
@@ -481,6 +498,9 @@ void SynthVoice::renderNextBlock(juce::AudioBuffer<float>& outputBuffer, int sta
 
             for (int osc = 0; osc < numOscillators; ++osc)
             {
+                if (bypassed[static_cast<size_t>(osc)])
+                    continue;
+
                 auto& phase = oscillatorPhases[static_cast<size_t>(voiceIndex)][static_cast<size_t>(osc)];
 
                 const auto syncChoice = syncSources[static_cast<size_t>(osc)];
@@ -535,12 +555,21 @@ void SynthVoice::renderNextBlock(juce::AudioBuffer<float>& outputBuffer, int sta
         {
             left = filter.processSample(0, left);
             right = filter.processSample(1, right);
+
+            if (use24dBLowPass)
+            {
+                left = filter24dBStage.processSample(0, left);
+                right = filter24dBStage.processSample(1, right);
+            }
+
             outputBuffer.addSample(0, startSample, left);
             outputBuffer.addSample(1, startSample, right);
         }
         else
         {
-            const auto mono = filter.processSample(0, (left + right) * 0.5f);
+            auto mono = filter.processSample(0, (left + right) * 0.5f);
+            if (use24dBLowPass)
+                mono = filter24dBStage.processSample(0, mono);
             outputBuffer.addSample(0, startSample, mono);
         }
 

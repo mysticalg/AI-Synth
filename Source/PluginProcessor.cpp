@@ -13,7 +13,7 @@ public:
 
 const juce::StringArray waveformChoices { "Sine", "Saw", "Square", "Triangle", "Noise" };
 const juce::StringArray subWaveformChoices { "Sine", "Square", "Saw", "Triangle" };
-const juce::StringArray filterChoices { "Low Pass", "Band Pass", "High Pass" };
+const juce::StringArray filterChoices { "Low Pass", "Band Pass", "High Pass", "Low Pass 24" };
 const juce::StringArray lfoShapeChoices { "Sine", "Triangle", "Square", "Saw", "S&H" };
 const juce::StringArray pwmSourceChoices { "Off", "LFO 1", "LFO 2", "LFO 3", "Env 2", "Mod Wheel" };
 const juce::StringArray syncSourceChoices { "Off", "Osc 1", "Osc 2", "Osc 3" };
@@ -998,55 +998,69 @@ void AISynthAudioProcessor::applyEffects(juce::AudioBuffer<float>& buffer, const
     auto block = juce::dsp::AudioBlock<float>(buffer);
     auto context = juce::dsp::ProcessContextReplacing<float>(block);
 
-    chorus.setMix(getParam("chorusMix"));
-    chorus.setRate(getParam("chorusRate"));
-    chorus.setDepth(getParam("chorusDepth"));
-    chorus.setCentreDelay(7.0f);
-    chorus.process(context);
-
-    const auto distortionAmount = getParam("distortionAmount");
-    const auto saturationAmount = getParam("saturationAmount");
-
-    for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
+    if (getParam("chorusBypass") <= 0.5f)
     {
-        for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
+        chorus.setMix(getParam("chorusMix"));
+        chorus.setRate(getParam("chorusRate"));
+        chorus.setDepth(getParam("chorusDepth"));
+        chorus.setCentreDelay(7.0f);
+        chorus.process(context);
+    }
+
+    if (getParam("driveBypass") <= 0.5f)
+    {
+        const auto distortionAmount = getParam("distortionAmount");
+        const auto saturationAmount = getParam("saturationAmount");
+
+        for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
         {
-            auto value = buffer.getSample(channel, sample);
-
-            if (distortionAmount > 0.0001f)
+            for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
             {
-                const auto drive = 1.0f + distortionAmount * 22.0f;
-                value = std::tanh(value * drive);
-            }
+                auto value = buffer.getSample(channel, sample);
 
-            if (saturationAmount > 0.0001f)
-            {
-                const auto drive = 1.0f + saturationAmount * 9.0f;
-                value = std::atan(value * drive) / std::atan(drive);
-            }
+                if (distortionAmount > 0.0001f)
+                {
+                    const auto drive = 1.0f + distortionAmount * 22.0f;
+                    value = std::tanh(value * drive);
+                }
 
-            buffer.setSample(channel, sample, value);
+                if (saturationAmount > 0.0001f)
+                {
+                    const auto drive = 1.0f + saturationAmount * 9.0f;
+                    value = std::atan(value * drive) / std::atan(drive);
+                }
+
+                buffer.setSample(channel, sample, value);
+            }
         }
     }
 
-    applyBitcrusher(buffer);
+    if (getParam("bitcrusherBypass") <= 0.5f)
+        applyBitcrusher(buffer);
 
-    compressor.setThreshold(getParam("compressorThreshold"));
-    compressor.setRatio(getParam("compressorRatio"));
-    compressor.process(context);
+    if (getParam("compressorBypass") <= 0.5f)
+    {
+        compressor.setThreshold(getParam("compressorThreshold"));
+        compressor.setRatio(getParam("compressorRatio"));
+        compressor.process(context);
+    }
 
-    applyDelay(buffer, transport);
+    if (getParam("delayBypass") <= 0.5f)
+        applyDelay(buffer, transport);
 
-    juce::dsp::Reverb::Parameters reverbParameters;
-    reverbParameters.roomSize = getParam("reverbSize");
-    reverbParameters.damping = getParam("reverbDamping");
-    reverbParameters.width = 1.0f;
-    reverbParameters.freezeMode = 0.0f;
-    reverbParameters.wetLevel = getParam("reverbMix");
-    reverbParameters.dryLevel = 1.0f - getParam("reverbMix");
-    reverb.setParameters(reverbParameters);
+    if (getParam("reverbBypass") <= 0.5f)
+    {
+        juce::dsp::Reverb::Parameters reverbParameters;
+        reverbParameters.roomSize = getParam("reverbSize");
+        reverbParameters.damping = getParam("reverbDamping");
+        reverbParameters.width = 1.0f;
+        reverbParameters.freezeMode = 0.0f;
+        reverbParameters.wetLevel = getParam("reverbMix");
+        reverbParameters.dryLevel = 1.0f - getParam("reverbMix");
+        reverb.setParameters(reverbParameters);
 
-    reverb.process(context);
+        reverb.process(context);
+    }
 }
 
 void AISynthAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
@@ -1149,6 +1163,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout AISynthAudioProcessor::creat
     addFloat("osc1PulseWidth", "Osc 1 Pulse Width", { 0.05f, 0.95f }, 0.5f);
     addFloat("osc1PwmAmount", "Osc 1 PWM Amount", { 0.0f, 1.0f }, 0.2f);
     addChoice("osc1PwmSource", "Osc 1 PWM Source", pwmSourceChoices, 1);
+    params.push_back(std::make_unique<juce::AudioParameterBool>("osc1Bypass", "Osc 1 Bypass", false));
 
     addChoice("osc2Wave", "Osc 2 Wave", waveformChoices, 2);
     addFloat("osc2Level", "Osc 2 Level", { 0.0f, 1.0f }, 0.58f);
@@ -1158,6 +1173,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout AISynthAudioProcessor::creat
     addFloat("osc2PwmAmount", "Osc 2 PWM Amount", { 0.0f, 1.0f }, 0.24f);
     addChoice("osc2PwmSource", "Osc 2 PWM Source", pwmSourceChoices, 2);
     addChoice("osc2SyncSource", "Osc 2 Sync Source", syncSourceChoices, 0);
+    params.push_back(std::make_unique<juce::AudioParameterBool>("osc2Bypass", "Osc 2 Bypass", false));
 
     addChoice("osc3Wave", "Osc 3 Wave", waveformChoices, 3);
     addFloat("osc3Level", "Osc 3 Level", { 0.0f, 1.0f }, 0.42f);
@@ -1167,6 +1183,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout AISynthAudioProcessor::creat
     addFloat("osc3PwmAmount", "Osc 3 PWM Amount", { 0.0f, 1.0f }, 0.18f);
     addChoice("osc3PwmSource", "Osc 3 PWM Source", pwmSourceChoices, 3);
     addChoice("osc3SyncSource", "Osc 3 Sync Source", syncSourceChoices, 0);
+    params.push_back(std::make_unique<juce::AudioParameterBool>("osc3Bypass", "Osc 3 Bypass", false));
 
     addChoice("subWave", "Sub Wave", subWaveformChoices, 1);
     addFloat("subLevel", "Sub Level", { 0.0f, 1.0f }, 0.35f);
@@ -1174,10 +1191,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout AISynthAudioProcessor::creat
     addFloat("subPulseWidth", "Sub Pulse Width", { 0.05f, 0.95f }, 0.5f);
     addFloat("subPwmAmount", "Sub PWM Amount", { 0.0f, 1.0f }, 0.15f);
     addChoice("subPwmSource", "Sub PWM Source", pwmSourceChoices, 1);
+    params.push_back(std::make_unique<juce::AudioParameterBool>("subBypass", "Sub Bypass", false));
 
     addChoice("filterType", "Filter Type", filterChoices, 0);
     addFloat("cutoff", "Cutoff", { 40.0f, 18000.0f, 1.0f, 0.22f }, 11000.0f);
-    addFloat("resonance", "Resonance", { 0.1f, 1.4f }, 0.38f);
+    addFloat("resonance", "Resonance", { 0.1f, 2.2f }, 0.38f);
     addFloat("drive", "Drive", { 0.0f, 1.0f }, 0.2f);
     addFloat("filterAccent", "Filter Accent", { 0.0f, 1.0f }, 0.45f);
     addFloat("env1ToFilter", "Env 1 To Filter", { 0.0f, 1.0f }, 0.46f);
@@ -1231,20 +1249,26 @@ juce::AudioProcessorValueTreeState::ParameterLayout AISynthAudioProcessor::creat
     addFloat("delayTime", "Delay Time", { 0.02f, 2.0f }, 0.32f);
     params.push_back(std::make_unique<juce::AudioParameterBool>("delaySync", "Delay Sync", true));
     addChoice("delayDivision", "Delay Division", timingDivisionChoices, 3);
+    params.push_back(std::make_unique<juce::AudioParameterBool>("delayBypass", "Delay Bypass", false));
 
     addFloat("chorusMix", "Chorus Mix", { 0.0f, 1.0f }, 0.18f);
     addFloat("chorusRate", "Chorus Rate", { 0.01f, 6.0f }, 0.35f);
     addFloat("chorusDepth", "Chorus Depth", { 0.0f, 1.0f }, 0.42f);
+    params.push_back(std::make_unique<juce::AudioParameterBool>("chorusBypass", "Chorus Bypass", false));
     addFloat("distortionAmount", "Distortion", { 0.0f, 1.0f }, 0.12f);
     addFloat("saturationAmount", "Saturation", { 0.0f, 1.0f }, 0.18f);
+    params.push_back(std::make_unique<juce::AudioParameterBool>("driveBypass", "Drive Bypass", false));
     addFloat("compressorThreshold", "Compressor Threshold", { -40.0f, 0.0f }, -18.0f);
     addFloat("compressorRatio", "Compressor Ratio", { 1.0f, 20.0f }, 3.0f);
+    params.push_back(std::make_unique<juce::AudioParameterBool>("compressorBypass", "Compressor Bypass", false));
     addFloat("reverbMix", "Reverb Mix", { 0.0f, 1.0f }, 0.2f);
     addFloat("reverbSize", "Reverb Size", { 0.0f, 1.0f }, 0.45f);
     addFloat("reverbDamping", "Reverb Damping", { 0.0f, 1.0f }, 0.4f);
+    params.push_back(std::make_unique<juce::AudioParameterBool>("reverbBypass", "Reverb Bypass", false));
     addFloat("bitcrusherMix", "Bitcrusher Mix", { 0.0f, 1.0f }, 0.0f);
     addInt("bitDepth", "Bit Depth", 2, 16, 10);
     addInt("bitDownsample", "Bit Downsample", 1, 32, 4);
+    params.push_back(std::make_unique<juce::AudioParameterBool>("bitcrusherBypass", "Bitcrusher Bypass", false));
 
     for (int slot = 1; slot <= 4; ++slot)
     {

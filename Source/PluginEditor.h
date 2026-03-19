@@ -37,6 +37,30 @@ public:
         sequencer
     };
 
+    enum class VoiceDetailTab
+    {
+        filter,
+        arp
+    };
+
+    enum class OscillatorDetailTab
+    {
+        osc1,
+        osc2,
+        osc3,
+        sub
+    };
+
+    enum class EffectsDetailTab
+    {
+        delay,
+        chorus,
+        drive,
+        dynamics,
+        reverb,
+        crusher
+    };
+
     struct ThemePalette
     {
         juce::String name;
@@ -86,7 +110,9 @@ private:
                           int buttonX, int buttonY, int buttonW, int buttonH,
                           juce::ComboBox&) override;
         juce::Font getComboBoxFont(juce::ComboBox&) override;
+        juce::Font getTextButtonFont(juce::TextButton&, int buttonHeight) override;
         juce::Label* createSliderTextBox(juce::Slider&) override;
+        juce::Slider::SliderLayout getSliderLayout(juce::Slider&) override;
 
     private:
         ThemePalette theme;
@@ -139,7 +165,9 @@ private:
     ChoiceMeta* findChoice(const juce::String& id);
     ToggleMeta* findToggle(const juce::String& id);
 
-    void layoutKnobGrid(juce::Rectangle<int> area, std::initializer_list<const char*> ids, int columns);
+    void layoutKnobGrid(juce::Rectangle<int> area, std::initializer_list<const char*> ids, int columns,
+                        int labelHeight = 16, int cellPadding = 2, float labelFontSize = 9.75f,
+                        int minimumRows = 0);
     void layoutChoiceRow(juce::Rectangle<int> area, std::initializer_list<const char*> ids);
     void layoutToggleRow(juce::Rectangle<int> area, std::initializer_list<const char*> ids);
     void layoutVerticalSliderBank(juce::Rectangle<int> area, std::initializer_list<const char*> ids);
@@ -198,9 +226,24 @@ private:
     juce::TextButton modulationTabButton;
     juce::TextButton effectsTabButton;
     juce::TextButton sequencerTabButton;
+    juce::TextButton osc1TabButton;
+    juce::TextButton osc2TabButton;
+    juce::TextButton osc3TabButton;
+    juce::TextButton subTabButton;
+    juce::TextButton delayFxTabButton;
+    juce::TextButton chorusFxTabButton;
+    juce::TextButton driveFxTabButton;
+    juce::TextButton dynamicsFxTabButton;
+    juce::TextButton reverbFxTabButton;
+    juce::TextButton crusherFxTabButton;
+    juce::TextButton voiceFilterTabButton;
+    juce::TextButton voiceArpTabButton;
     bool updatingPresetCombo { false };
     bool updatingPatternCombo { false };
     ActiveTab activeTab { ActiveTab::voice };
+    OscillatorDetailTab oscillatorDetailTab { OscillatorDetailTab::osc1 };
+    EffectsDetailTab effectsDetailTab { EffectsDetailTab::delay };
+    VoiceDetailTab voiceDetailTab { VoiceDetailTab::filter };
     ThemePalette currentTheme;
     float animationPhase { 0.0f };
     juce::StringArray filteredPresetNames;
@@ -227,12 +270,15 @@ private:
     juce::Rectangle<int> headerBounds;
     juce::Rectangle<int> presetPanelBounds;
     juce::Rectangle<int> oscillatorPanelBounds;
+    juce::Rectangle<int> oscillatorTabsBounds;
+    juce::Rectangle<int> voiceDetailTabsBounds;
     juce::Rectangle<int> filterPanelBounds;
     juce::Rectangle<int> arpPanelBounds;
     juce::Rectangle<int> env1PanelBounds;
     juce::Rectangle<int> env2PanelBounds;
     juce::Rectangle<int> lfoPanelBounds;
     juce::Rectangle<int> fxPanelBounds;
+    juce::Rectangle<int> fxTabsBounds;
     juce::Rectangle<int> matrixPanelBounds;
     juce::Rectangle<int> sequencerPanelBounds;
     juce::Rectangle<int> keyboardPanelBounds;

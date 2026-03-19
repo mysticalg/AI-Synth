@@ -56,6 +56,7 @@ private:
     juce::ADSR::Parameters ampParams;
     juce::ADSR::Parameters modParams;
     juce::dsp::StateVariableTPTFilter<float> filter;
+    juce::dsp::StateVariableTPTFilter<float> filter24dBStage;
 
     double currentSampleRate { 44100.0 };
     float currentNoteFrequency { 440.0f };
