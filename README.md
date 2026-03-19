@@ -6,6 +6,8 @@ By default this project builds **VST3 + Standalone**. Optional legacy **VST2 (.d
 
 Live page + downloads: [mysticalg.github.io/AI-Synth](https://mysticalg.github.io/AI-Synth/)
 
+Support development: [buymeacoffee.com/dhooksterm](https://buymeacoffee.com/dhooksterm)
+
 ![AI Synth standalone overview](docs/assets/ai-synth-overview.png)
 
 ## Features
