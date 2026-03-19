@@ -70,3 +70,30 @@ target_link_libraries(AISynth
     juce::juce_recommended_config_flags
     juce::juce_recommended_lto_flags
     juce::juce_recommended_warning_flags)
+
+juce_add_console_app(AISynthStressTest
+  PRODUCT_NAME "AI Synth Stress Test")
+
+target_sources(AISynthStressTest PRIVATE
+  Tests/ProcessorStressTest.cpp)
+
+target_include_directories(AISynthStressTest
+  PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source"
+    "${CMAKE_CURRENT_BINARY_DIR}/AISynth_artefacts/JuceLibraryCode")
+
+target_compile_definitions(AISynthStressTest
+  PRIVATE
+    JUCE_WEB_BROWSER=0
+    JUCE_USE_CURL=0
+    JUCE_VST3_CAN_REPLACE_VST2=0)
+
+target_link_libraries(AISynthStressTest
+  PRIVATE
+    AISynth
+    juce::juce_audio_utils
+    juce::juce_dsp
+  PUBLIC
+    juce::juce_recommended_config_flags
+    juce::juce_recommended_lto_flags
+    juce::juce_recommended_warning_flags)

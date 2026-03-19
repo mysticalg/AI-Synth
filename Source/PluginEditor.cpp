@@ -542,7 +542,14 @@ AISynthAudioProcessorEditor::AISynthAudioProcessorEditor(AISynthAudioProcessor& 
     presetGroupCombo.onChange = [this]
     {
         if (! updatingPresetCombo)
-            refreshPresetCombo(true);
+        {
+            juce::Component::SafePointer<AISynthAudioProcessorEditor> safeThis(this);
+            juce::Timer::callAfterDelay(80, [safeThis]
+            {
+                if (safeThis != nullptr)
+                    safeThis->refreshPresetCombo(true, false);
+            });
+        }
     };
     addAndMakeVisible(presetGroupCombo);
 
@@ -551,7 +558,7 @@ AISynthAudioProcessorEditor::AISynthAudioProcessorEditor(AISynthAudioProcessor& 
     presetSearchEditor.onTextChange = [this]
     {
         if (! updatingPresetCombo)
-            refreshPresetCombo(true);
+            refreshPresetCombo(true, false);
     };
     addAndMakeVisible(presetSearchEditor);
 
@@ -565,12 +572,20 @@ AISynthAudioProcessorEditor::AISynthAudioProcessorEditor(AISynthAudioProcessor& 
         if (juce::isPositiveAndBelow(selectedIndex, filteredPresetNames.size()))
         {
             const auto presetName = filteredPresetNames[selectedIndex];
-            if (audioProcessor.loadPresetByName(presetName))
+            juce::Component::SafePointer<AISynthAudioProcessorEditor> safeThis(this);
+            juce::Timer::callAfterDelay(80, [safeThis, presetName]
             {
-                presetNameEditor.setText(getLeafName(audioProcessor.getCurrentPresetName()), juce::dontSendNotification);
-                refreshPatternCombo(true);
-                refreshMidiLearnDecorations();
-            }
+                if (safeThis == nullptr)
+                    return;
+
+                if (safeThis->audioProcessor.loadPresetByName(presetName))
+                {
+                    safeThis->presetNameEditor.setText(getLeafName(safeThis->audioProcessor.getCurrentPresetName()), juce::dontSendNotification);
+                    safeThis->refreshPatternCombo(false);
+                    safeThis->refreshMidiLearnDecorations();
+                    safeThis->applyTheme();
+                }
+            });
         }
     };
     addAndMakeVisible(presetCombo);
@@ -605,10 +620,18 @@ AISynthAudioProcessorEditor::AISynthAudioProcessorEditor(AISynthAudioProcessor& 
     };
     initPresetButton.onClick = [this]
     {
-        audioProcessor.loadPresetByName("Init");
-        refreshPatternCombo(false);
-        refreshPresetCombo(false);
-        refreshMidiLearnDecorations();
+        juce::Component::SafePointer<AISynthAudioProcessorEditor> safeThis(this);
+        juce::Timer::callAfterDelay(80, [safeThis]
+        {
+            if (safeThis == nullptr)
+                return;
+
+            safeThis->audioProcessor.loadPresetByName("Init");
+            safeThis->refreshPatternCombo(false);
+            safeThis->refreshPresetCombo(false);
+            safeThis->refreshMidiLearnDecorations();
+            safeThis->applyTheme();
+        });
     };
     presetMenuButton.onClick = [this] { showPresetMenu(); };
     addAndMakeVisible(savePresetButton);
@@ -629,8 +652,15 @@ AISynthAudioProcessorEditor::AISynthAudioProcessorEditor(AISynthAudioProcessor& 
         if (juce::isPositiveAndBelow(selectedIndex, filteredPatternNames.size()))
         {
             const auto patternName = filteredPatternNames[selectedIndex];
-            if (audioProcessor.loadPatternByName(patternName))
-                patternNameEditor.setText(getLeafName(audioProcessor.getCurrentPatternName()), juce::dontSendNotification);
+            juce::Component::SafePointer<AISynthAudioProcessorEditor> safeThis(this);
+            juce::Timer::callAfterDelay(80, [safeThis, patternName]
+            {
+                if (safeThis == nullptr)
+                    return;
+
+                if (safeThis->audioProcessor.loadPatternByName(patternName))
+                    safeThis->patternNameEditor.setText(getLeafName(safeThis->audioProcessor.getCurrentPatternName()), juce::dontSendNotification);
+            });
         }
     };
     addAndMakeVisible(patternCombo);
@@ -1260,7 +1290,16 @@ void AISynthAudioProcessorEditor::timerCallback()
     if (animationPhase > juce::MathConstants<float>::twoPi)
         animationPhase -= juce::MathConstants<float>::twoPi;
 
-    applyTheme();
+    const auto themeIndex = audioProcessor.getCurrentThemeIndex();
+    if (themeCombo.getSelectedItemIndex() != themeIndex)
+    {
+        applyTheme();
+        return;
+    }
+
+    currentTheme = createThemePalette(themeIndex, animationPhase);
+    synthLookAndFeel.setTheme(currentTheme, animationPhase);
+    repaint();
 }
 
 void AISynthAudioProcessorEditor::refreshBackgroundTexture()
@@ -1338,7 +1377,7 @@ void AISynthAudioProcessorEditor::refreshBackgroundTexture()
     }
 }
 
-void AISynthAudioProcessorEditor::refreshPresetCombo(bool preserveSelection)
+void AISynthAudioProcessorEditor::refreshPresetCombo(bool preserveSelection, bool rebuildGroups)
 {
     const auto selectedIndex = presetCombo.getSelectedItemIndex();
     const auto desiredName = preserveSelection && juce::isPositiveAndBelow(selectedIndex, filteredPresetNames.size())
@@ -1352,20 +1391,23 @@ void AISynthAudioProcessorEditor::refreshPresetCombo(bool preserveSelection)
     updatingPresetCombo = true;
     filteredPresetNames.clear();
 
-    juce::StringArray groups;
-    groups.add("All Presets");
-    for (const auto& name : audioProcessor.getPresetNames())
-        groups.addIfNotAlreadyThere(getTopLevelGroupName(name));
+    if (rebuildGroups)
+    {
+        juce::StringArray groups;
+        groups.add("All Presets");
+        for (const auto& name : audioProcessor.getPresetNames())
+            groups.addIfNotAlreadyThere(getTopLevelGroupName(name));
 
-    presetGroupCombo.clear();
-    presetGroupCombo.addItemList(groups, 1);
+        presetGroupCombo.clear();
+        presetGroupCombo.addItemList(groups, 1);
 
-    auto selectedGroupId = groups.indexOf(desiredGroup) + 1;
-    if (selectedGroupId <= 0)
-        selectedGroupId = groups.indexOf(getTopLevelGroupName(audioProcessor.getCurrentPresetName())) + 1;
-    if (selectedGroupId <= 0)
-        selectedGroupId = 1;
-    presetGroupCombo.setSelectedId(selectedGroupId, juce::dontSendNotification);
+        auto selectedGroupId = groups.indexOf(desiredGroup) + 1;
+        if (selectedGroupId <= 0)
+            selectedGroupId = groups.indexOf(getTopLevelGroupName(audioProcessor.getCurrentPresetName())) + 1;
+        if (selectedGroupId <= 0)
+            selectedGroupId = 1;
+        presetGroupCombo.setSelectedId(selectedGroupId, juce::dontSendNotification);
+    }
 
     const auto activeGroup = presetGroupCombo.getText();
     presetCombo.clear();

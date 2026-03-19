@@ -152,7 +152,7 @@ private:
     void timerCallback() override;
     void applyTheme();
     void refreshBackgroundTexture();
-    void refreshPresetCombo(bool preserveSelection);
+    void refreshPresetCombo(bool preserveSelection, bool rebuildGroups = true);
     void refreshPatternCombo(bool preserveSelection);
     void refreshMidiLearnDecorations();
     void sendPitchWheelMessage();

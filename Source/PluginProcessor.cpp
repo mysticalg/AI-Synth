@@ -39,6 +39,22 @@ const std::array<std::array<float, 16>, 4> gatePatterns
 
 using ParameterValues = std::vector<std::pair<juce::String, float>>;
 
+struct ScopedProcessingPause
+{
+    explicit ScopedProcessingPause(juce::AudioProcessor& processorToPause) : processor(processorToPause)
+    {
+        callbackLock = std::make_unique<juce::ScopedLock>(processor.getCallbackLock());
+    }
+
+    ~ScopedProcessingPause()
+    {
+        callbackLock.reset();
+    }
+
+    juce::AudioProcessor& processor;
+    std::unique_ptr<juce::ScopedLock> callbackLock;
+};
+
 struct StepPatternTemplate
 {
     juce::String name;
@@ -1261,6 +1277,40 @@ juce::File AISynthAudioProcessor::getMidiMappingDirectory() const
         .getChildFile("MidiMappings");
 }
 
+void AISynthAudioProcessor::resetRealtimePlaybackState(bool clearHeldNotes) noexcept
+{
+    for (int midiChannel = 1; midiChannel <= 16; ++midiChannel)
+        synth.allNotesOff(midiChannel, false);
+
+    synth.resetPlayState();
+
+    if (clearHeldNotes)
+    {
+        heldNotes.clear();
+        keyboardState.reset();
+    }
+
+    arpIndex = 0;
+    arpDirectionForward = true;
+    arpCurrentNote = -1;
+    arpSamplesUntilStep = 0;
+    arpSamplesUntilOff = 0;
+    sequencerCurrentNote = -1;
+    sequencerLastAbsoluteStep = std::numeric_limits<int>::min();
+    sequencerGateClosedStep = std::numeric_limits<int>::min();
+    lastSequencerSourceNote = {};
+    currentSequencerStep.store(-1);
+    sequencerFreeSamplePosition = 0;
+    rhythmGateSamplePosition = 0;
+    bitcrusherCounter = 0;
+    delayWritePosition = 0;
+    std::fill(bitcrusherHeldSamples.begin(), bitcrusherHeldSamples.end(), 0.0f);
+    delayBuffer.clear();
+    chorus.reset();
+    compressor.reset();
+    reverb.reset();
+}
+
 void AISynthAudioProcessor::resetParametersToDefaults()
 {
     for (auto* parameter : getParameters())
@@ -1271,11 +1321,7 @@ void AISynthAudioProcessor::resetParametersToDefaults()
 void AISynthAudioProcessor::setParameterValue(const juce::String& id, float value)
 {
     if (auto* parameter = apvts.getParameter(id))
-    {
-        parameter->beginChangeGesture();
         parameter->setValueNotifyingHost(parameter->convertTo0to1(value));
-        parameter->endChangeGesture();
-    }
 }
 
 juce::ValueTree AISynthAudioProcessor::createMidiMappingsState(const juce::String& presetName,
@@ -1407,6 +1453,8 @@ bool AISynthAudioProcessor::loadPresetFile(const juce::File& file)
     if (! state.isValid())
         return false;
 
+    ScopedProcessingPause processingPause(*this);
+    resetRealtimePlaybackState(true);
     apvts.replaceState(state);
     const auto displayName = state.getProperty("displayName").toString();
     const auto storedName = state.getProperty("currentPresetName").toString();
@@ -1428,6 +1476,9 @@ bool AISynthAudioProcessor::loadPatternFile(const juce::File& file)
     auto state = juce::ValueTree::fromXml(*xml);
     if (! state.isValid())
         return false;
+
+    ScopedProcessingPause processingPause(*this);
+    resetRealtimePlaybackState(false);
 
     const auto applyFloatProperty = [this, &state] (const juce::String& id)
     {
@@ -1455,6 +1506,8 @@ bool AISynthAudioProcessor::loadPatternFile(const juce::File& file)
 
 void AISynthAudioProcessor::applyFactoryPreset(const PresetDefinition& preset)
 {
+    ScopedProcessingPause processingPause(*this);
+    resetRealtimePlaybackState(true);
     resetParametersToDefaults();
 
     for (const auto& [id, value] : preset.values)
@@ -1467,6 +1520,9 @@ void AISynthAudioProcessor::applyFactoryPreset(const PresetDefinition& preset)
 
 void AISynthAudioProcessor::applyPatternDefinition(const PatternDefinition& pattern)
 {
+    ScopedProcessingPause processingPause(*this);
+    resetRealtimePlaybackState(false);
+
     for (const auto& [id, value] : pattern.values)
         setParameterValue(id, value);
 
@@ -2197,6 +2253,8 @@ void AISynthAudioProcessor::setStateInformation(const void* data, int sizeInByte
     if (auto xml = getXmlFromBinary(data, sizeInBytes))
     {
         auto state = juce::ValueTree::fromXml(*xml);
+        ScopedProcessingPause processingPause(*this);
+        resetRealtimePlaybackState(true);
         apvts.replaceState(state);
 
         const auto loadedPresetName = state.getProperty("currentPresetName").toString();

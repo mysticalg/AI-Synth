@@ -184,6 +184,7 @@ private:
     juce::File getPresetDirectory() const;
     juce::File getPatternDirectory() const;
     juce::File getMidiMappingDirectory() const;
+    void resetRealtimePlaybackState(bool clearHeldNotes) noexcept;
     void resetParametersToDefaults();
     void setParameterValue(const juce::String& id, float value);
     bool loadPresetFile(const juce::File& file);
