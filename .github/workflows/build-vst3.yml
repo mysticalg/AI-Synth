@@ -12,6 +12,9 @@ on:
     branches: ["main", "master"]
   pull_request:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 permissions:
   contents: read
 
@@ -30,7 +33,7 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup CMake
         uses: lukka/get-cmake@latest
@@ -75,7 +78,7 @@ jobs:
         run: python scripts/package_release.py --build-dir build --dist-dir dist --platform "${{ matrix.platform }}" --runner-os "${{ runner.os }}"
 
       - name: Upload packaged artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: AISynth-${{ matrix.platform }}-packages
           path: dist/*.zip
@@ -90,7 +93,7 @@ jobs:
 
     steps:
       - name: Download packaged artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: AISynth-*-packages
           path: release-assets
@@ -114,7 +117,7 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup CMake
         uses: lukka/get-cmake@latest
@@ -146,7 +149,7 @@ jobs:
         run: cmake --build build-vst2 --config Release --target AISynth_VST
 
       - name: Upload VST2 artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: AISynth-windows-VST2
           path: |
