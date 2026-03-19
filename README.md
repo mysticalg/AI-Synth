@@ -8,7 +8,7 @@ Live page + downloads: [mysticalg.github.io/AI-Synth](https://mysticalg.github.i
 
 Support development: [buymeacoffee.com/dhooksterm](https://buymeacoffee.com/dhooksterm)
 
-![AI Synth standalone overview](docs/assets/ai-synth-overview.png)
+![AI Synth standalone voice tab](docs/assets/ai-synth-voice.png)
 
 ## Features
 - Oscillators: sine, saw, square, noise

@@ -202,6 +202,111 @@
       gap: 18px;
     }
 
+    .carousel {
+      position: relative;
+      overflow: hidden;
+      border-radius: 22px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: linear-gradient(180deg, rgba(15, 20, 30, 0.98), rgba(9, 13, 20, 0.98));
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+    }
+
+    .carousel-track {
+      display: flex;
+      transition: transform 220ms ease;
+      will-change: transform;
+    }
+
+    .carousel-slide {
+      position: relative;
+      min-width: 100%;
+      overflow: hidden;
+    }
+
+    .carousel-slide img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    .slide-panel {
+      position: absolute;
+      right: 22px;
+      top: 22px;
+      max-width: 360px;
+      padding: 18px 20px;
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(9, 13, 20, 0.92), rgba(9, 13, 20, 0.8));
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      box-shadow: 0 16px 32px rgba(0, 0, 0, 0.36);
+      backdrop-filter: blur(12px);
+    }
+
+    .slide-panel h3 {
+      margin: 0 0 10px;
+      font-size: 1rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    .slide-panel p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .carousel-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+      margin-top: 16px;
+    }
+
+    .carousel-buttons {
+      display: flex;
+      gap: 10px;
+    }
+
+    .carousel-button {
+      padding: 10px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--text);
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 140ms ease, border-color 140ms ease, background 140ms ease;
+    }
+
+    .carousel-button:hover {
+      transform: translateY(-1px);
+      border-color: rgba(95, 216, 255, 0.5);
+      background: rgba(95, 216, 255, 0.08);
+    }
+
+    .carousel-dots {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .carousel-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      border: 0;
+      background: rgba(255, 255, 255, 0.2);
+      cursor: pointer;
+      transition: transform 140ms ease, background 140ms ease;
+    }
+
+    .carousel-dot.active {
+      background: linear-gradient(180deg, var(--accent-2), var(--accent));
+      transform: scale(1.1);
+    }
+
     figure {
       margin: 0;
     }
@@ -245,6 +350,27 @@
     code {
       font-family: "Consolas", "SFMono-Regular", monospace;
     }
+
+    @media (max-width: 760px) {
+      .slide-panel {
+        position: static;
+        max-width: none;
+        border-radius: 0;
+        border-left: 0;
+        border-right: 0;
+        border-bottom: 0;
+      }
+
+      .carousel-nav {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .carousel-buttons,
+      .carousel-dots {
+        justify-content: center;
+      }
+    }
   </style>
 </head>
 <body>
@@ -266,7 +392,7 @@
         </div>
       </div>
       <div class="hero-shot">
-        <img src="./assets/ai-synth-overview.png" alt="AI Synth overview screenshot">
+        <img src="./assets/ai-synth-voice.png" alt="AI Synth voice tab screenshot">
       </div>
     </section>
 
@@ -331,18 +457,52 @@
       <div class="section-head">
         <div>
           <h2>Screenshots</h2>
-          <p>The front panel stays compact, and the sequencer gets its own dedicated tab.</p>
+          <p>Fresh captures from the standalone app, with one slide per major tab so each feature area reads clearly.</p>
         </div>
       </div>
-      <div class="shot-grid">
-        <figure>
-          <img src="./assets/ai-synth-overview.png" alt="AI Synth overview screenshot">
-          <figcaption>Overview tab with the compact hardware-style layout, grouped control sections, and the full-width keyboard.</figcaption>
-        </figure>
-        <figure>
-          <img src="./assets/ai-synth-sequencer.png" alt="AI Synth sequencer screenshot">
-          <figcaption>Sequencer tab with pattern controls and step editing, ready to combine with the synth engine and modulation system.</figcaption>
-        </figure>
+      <div class="carousel" id="feature-carousel">
+        <div class="carousel-track">
+          <article class="carousel-slide">
+            <img src="./assets/ai-synth-voice.png" alt="AI Synth voice tab with oscillators, filter, arp, and keyboard">
+            <div class="slide-panel">
+              <h3>Voice Tab</h3>
+              <p>Oscillator bank, filter tone shaping, arp and rhythm gate controls, plus the full-width performance keyboard in one compact layout.</p>
+            </div>
+          </article>
+          <article class="carousel-slide">
+            <img src="./assets/ai-synth-mod.png" alt="AI Synth modulation tab with envelopes and LFO bank">
+            <div class="slide-panel">
+              <h3>Mod Tab</h3>
+              <p>Dedicated ADSR slider banks for both envelopes, assignable velocity routing, and three LFOs ready for PWM, sync, and motion work.</p>
+            </div>
+          </article>
+          <article class="carousel-slide">
+            <img src="./assets/ai-synth-fx.png" alt="AI Synth effects and matrix tab with host-synced effects controls">
+            <div class="slide-panel">
+              <h3>FX / Matrix Tab</h3>
+              <p>Host-synced delay plus chorus, distortion, saturation, compression, reverb, bitcrush, and four flexible modulation routing lanes.</p>
+            </div>
+          </article>
+          <article class="carousel-slide">
+            <img src="./assets/ai-synth-sequencer.png" alt="AI Synth sequencer tab with pattern and step controls">
+            <div class="slide-panel">
+              <h3>Sequencer Tab</h3>
+              <p>Pattern browser, host-sync or free-run timing, and per-step note, gate, and velocity lanes designed to stack with the arp for unusual movement.</p>
+            </div>
+          </article>
+        </div>
+      </div>
+      <div class="carousel-nav">
+        <div class="carousel-buttons">
+          <button class="carousel-button" type="button" data-carousel-prev>Previous</button>
+          <button class="carousel-button" type="button" data-carousel-next>Next</button>
+        </div>
+        <div class="carousel-dots" aria-label="Screenshot navigation">
+          <button class="carousel-dot active" type="button" data-carousel-dot="0" aria-label="Show Voice tab screenshot"></button>
+          <button class="carousel-dot" type="button" data-carousel-dot="1" aria-label="Show Mod tab screenshot"></button>
+          <button class="carousel-dot" type="button" data-carousel-dot="2" aria-label="Show FX / Matrix tab screenshot"></button>
+          <button class="carousel-dot" type="button" data-carousel-dot="3" aria-label="Show Sequencer tab screenshot"></button>
+        </div>
       </div>
     </section>
 
@@ -383,5 +543,44 @@
       This page is deployed automatically from <code>docs/</code> by GitHub Actions, and the download buttons point at the rolling <code>latest-build</code> GitHub release.
     </p>
   </main>
+  <script>
+    (() => {
+      const carousel = document.getElementById("feature-carousel");
+      if (!carousel) return;
+
+      const track = carousel.querySelector(".carousel-track");
+      const slides = Array.from(carousel.querySelectorAll(".carousel-slide"));
+      const dots = Array.from(document.querySelectorAll("[data-carousel-dot]"));
+      const prev = document.querySelector("[data-carousel-prev]");
+      const next = document.querySelector("[data-carousel-next]");
+      let index = 0;
+
+      const render = () => {
+        track.style.transform = `translateX(-${index * 100}%)`;
+        dots.forEach((dot, dotIndex) => {
+          dot.classList.toggle("active", dotIndex === index);
+        });
+      };
+
+      prev?.addEventListener("click", () => {
+        index = (index - 1 + slides.length) % slides.length;
+        render();
+      });
+
+      next?.addEventListener("click", () => {
+        index = (index + 1) % slides.length;
+        render();
+      });
+
+      dots.forEach((dot) => {
+        dot.addEventListener("click", () => {
+          index = Number(dot.dataset.carouselDot || 0);
+          render();
+        });
+      });
+
+      render();
+    })();
+  </script>
 </body>
 </html>
